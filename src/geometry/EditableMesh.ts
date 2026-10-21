@@ -59,7 +59,7 @@ export class EditableMesh {
     this.mask = g.attributes.aMask.array as Float32Array;
 
     // BVH build reorders the index buffer in place; build it first so all triangle adjacency matches.
-    this.bvh = new MeshBVH(g, { maxLeafSize: 16 });
+    this.bvh = new MeshBVH(g, { targetLeafSize: 16 });
     (g as any).boundsTree = this.bvh;
     this.index = g.index!.array as Uint32Array;
     this.triangleCount = this.index.length / 3;
