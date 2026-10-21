@@ -1,0 +1,13 @@
+import { chromium } from 'playwright';
+const out = process.argv[2] ?? 'test-results/screens';
+const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+const logs = [];
+page.on('console', (m) => logs.push(`${m.type()}: ${m.text()}`));
+page.on('pageerror', (e) => logs.push(`pageerror: ${e.message}`));
+await page.goto('http://localhost:4173/?fresh=1');
+await page.waitForFunction(() => window.__formengine?.app?.model.objects.length > 0, null, { timeout: 20000 });
+await page.waitForTimeout(800);
+await page.screenshot({ path: `${out}/desktop-start.png` });
+console.log(logs.join('\n'));
+await browser.close();

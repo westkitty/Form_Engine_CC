@@ -12,7 +12,7 @@ THREE.Mesh.prototype.raycast = acceleratedRaycast;
 (THREE.BufferGeometry.prototype as any).computeBoundsTree = computeBoundsTree;
 (THREE.BufferGeometry.prototype as any).disposeBoundsTree = disposeBoundsTree;
 
-export interface FrameStats { fps: number; p50: number; p95: number; drawCalls: number; triangles: number; }
+export interface FrameStats { fps: number; p50: number; p95: number; renderP50: number; drawCalls: number; triangles: number; samples: number }
 
 /**
  * Owns the WebGL renderer, cameras, controls, lights and overlays. Renders on demand: `requestRender()`
@@ -33,6 +33,7 @@ export class Viewport {
   readonly overlays = new THREE.Group();
   readonly references = new THREE.Group();
   readonly grid: THREE.GridHelper;
+  readonly lightRig = new THREE.Group();
   readonly ground: THREE.Mesh;
   viewMode: ViewMode = 'studio';
   wireframe = false;
@@ -46,9 +47,10 @@ export class Viewport {
 
   private dirty = true;
   private raf = 0;
-  private clock = new THREE.Clock();
+  private timer = new THREE.Timer();
   private frameTimes: number[] = [];
-  private lastFrame = performance.now();
+  private lastFrame = 0;
+  private renderMs: number[] = [];
   private resizeObs: ResizeObserver;
   private disposers: (() => void)[] = [];
   private overlayByObject = new Map<string, { wire: THREE.Mesh; mask: THREE.Mesh }>();
@@ -70,19 +72,23 @@ export class Viewport {
     this.scene.background = new THREE.Color(0x15171b);
     const pmrem = new THREE.PMREMGenerator(renderer);
     this.scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    this.scene.environmentIntensity = 0.45;
+    this.scene.environmentIntensity = 0.22;
     pmrem.dispose();
 
     // Studio light rig: warm key, cool fill, rim.
-    const key = new THREE.DirectionalLight(0xfff1e0, 2.2); key.position.set(3, 4, 2.5);
-    const fill = new THREE.DirectionalLight(0xc8d6ff, 0.55); fill.position.set(-3, 1.5, 2);
-    const rim = new THREE.DirectionalLight(0xffd7a8, 1.3); rim.position.set(-1.5, 2.5, -3.5);
-    this.scene.add(key, fill, rim, new THREE.HemisphereLight(0x8a93a6, 0x1c1a17, 0.35));
+    // Lights are parented to the camera so form reads consistently while orbiting (studio "camera rig").
+    const key = new THREE.DirectionalLight(0xfff0dc, 2.4); key.position.set(-2.2, 2.6, 1.2);
+    const fill = new THREE.DirectionalLight(0xb9c8ff, 0.35); fill.position.set(2.5, -0.5, 1.5);
+    const rim = new THREE.DirectionalLight(0xffcf95, 1.6); rim.position.set(1.8, 1.5, -3);
+    this.lightRig.add(key, fill, rim);
+    this.scene.add(new THREE.HemisphereLight(0x8a93a6, 0x1c1a17, 0.18));
 
     this.persp = new THREE.PerspectiveCamera(38, 1, 0.01, 500);
     this.persp.position.set(1.6, 1.1, 2.2);
     this.ortho = new THREE.OrthographicCamera(-1, 1, 1, -1, -500, 500);
     this.camera = this.persp;
+    this.persp.add(this.lightRig);
+    this.scene.add(this.persp);
 
     this.grid = new THREE.GridHelper(10, 40, 0x3a3f4a, 0x24272e);
     (this.grid.material as THREE.Material).transparent = true;
@@ -172,6 +178,8 @@ export class Viewport {
     to.quaternion.copy(from.quaternion);
     to.updateProjectionMatrix();
     this.camera = to;
+    to.add(this.lightRig);
+    if (!to.parent) this.scene.add(to);
     this.controls.object = to;
     this.transform.camera = to;
     this.viewHelper.dispose?.();
@@ -314,24 +322,25 @@ export class Viewport {
     const ft = this.frameTimes.slice().sort((a, b) => a - b);
     const q = (p: number) => (ft.length ? ft[Math.min(ft.length - 1, Math.floor(ft.length * p))] : 0);
     const info = this.renderer.info.render;
-    return { fps: ft.length ? 1000 / q(0.5) : 0, p50: q(0.5), p95: q(0.95), drawCalls: info.calls, triangles: info.triangles };
+    const rm = this.renderMs.slice().sort((a, b) => a - b);
+    return { fps: ft.length ? 1000 / q(0.5) : 0, p50: q(0.5), p95: q(0.95), renderP50: rm.length ? rm[Math.floor(rm.length / 2)] : 0, drawCalls: info.calls, triangles: info.triangles, samples: ft.length };
   }
 
   private loop = () => {
     this.raf = requestAnimationFrame(this.loop);
-    const dt = this.clock.getDelta();
+    this.timer.update(); const dt = this.timer.getDelta();
     if (this.contextLost) return;
     let animating = false;
     if (this.turntable) { this.model.root.rotation.y += dt * 0.5; animating = true; }
     if (this.viewHelper.animating) { this.viewHelper.update(dt); animating = true; }
     // Damping keeps moving for a few frames after input; controls.update() returns true while it does.
     if (this.controls.update()) animating = true;
-    if (!this.dirty && !animating) return;
+    if (!this.dirty && !animating) { this.lastFrame = 0; return; }
     this.dirty = false;
     const now = performance.now();
-    const ft = now - this.lastFrame;
+    // Interval samples only between back-to-back rendered frames, so idle gaps don't count as slow frames.
+    if (this.lastFrame) { this.frameTimes.push(now - this.lastFrame); if (this.frameTimes.length > 240) this.frameTimes.shift(); }
     this.lastFrame = now;
-    if (ft < 250) { this.frameTimes.push(ft); if (this.frameTimes.length > 240) this.frameTimes.shift(); }
     // Overlays follow their object's world matrix.
     for (const o of this.model.objects) {
       const ov = this.overlayByObject.get(o.id);
@@ -341,6 +350,8 @@ export class Viewport {
     this.renderer.render(this.scene, this.camera);
     this.renderer.autoClear = false;
     this.viewHelper.render(this.renderer);
+    this.renderMs.push(performance.now() - now);
+    if (this.renderMs.length > 240) this.renderMs.shift();
     this.onAfterRender();
   };
 

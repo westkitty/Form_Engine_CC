@@ -60,7 +60,7 @@ let dracoLoader: DRACOLoader | null = null;
 function gltfLoader(manager?: THREE.LoadingManager) {
   const l = new GLTFLoader(manager);
   if (typeof window !== 'undefined') {
-    if (!dracoLoader) { dracoLoader = new DRACOLoader(); dracoLoader.setDecoderPath(`${import.meta.env?.BASE_URL ?? './'}draco/`); }
+    if (!dracoLoader) dracoLoader = new DRACOLoader(); // r186 resolves its bundled decoder via import.meta.url
     l.setDRACOLoader(dracoLoader);
   }
   l.setMeshoptDecoder(MeshoptDecoder);
