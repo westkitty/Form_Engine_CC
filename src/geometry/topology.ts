@@ -15,7 +15,7 @@ export function makePrimitive(kind: PrimitiveKind, detail = 2): THREE.BufferGeom
   switch (kind) {
     case 'sphere': {
       // Icosphere gives uniform triangle density; three builds it non-indexed, so weld it.
-      const ico = new THREE.IcosahedronGeometry(0.5, [8, 16, 32, 48, 72, 100][d]);
+      const ico = new THREE.IcosahedronGeometry(0.5, [8, 22, 32, 48, 72, 100][d]); // ≈1.6k, 10.6k, 21.8k, 48k, 107k, 204k tris
       ico.deleteAttribute('uv');
       ico.deleteAttribute('normal');
       g = mergeVertices(ico);

@@ -284,8 +284,9 @@ export class App {
         for (const p of this.samples) {
           // re-project interpolated points onto the surface so long jumps follow the form
           bvh.closestPointToPoint(p, target);
-          st.dab(target.point, pressure);
+          st.dab(target.point, pressure, true);
         }
+        st.flush();
       });
       this.strokeLast = local;
     }

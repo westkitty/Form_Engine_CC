@@ -655,7 +655,7 @@ async function main() {
     await boot(page);
     const env = await page.evaluate(() => { const gl = window.__formengine.app.viewport.renderer.getContext(); const dbg = gl.getExtension('WEBGL_debug_renderer_info'); return { ua: navigator.userAgent, renderer: dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : 'unknown', dpr: devicePixelRatio, cores: navigator.hardwareConcurrency }; });
     ev.environment = env;
-    for (const [label, kind, detail] of [['~10k tris', 'sphere', 0], ['~100k tris', 'sphere', 4], ['~500k tris', 'subdivided', 4]]) {
+    for (const [label, kind, detail] of [['~10k tris', 'sphere', 1], ['~100k tris', 'sphere', 4], ['~200k tris', 'sphere', 5], ['~430k tris (subdivided)', 'subdivided', 4]]) {
       const r = await page.evaluate(async ([kind, detail]) => {
         const app = window.__formengine.app;
         app.newProject(false);
@@ -679,17 +679,21 @@ async function main() {
           const hit = app.viewport.pick(cx, cy);
           if (!hit) continue;
           app.beginStroke(hit.obj, hit.hit.point, 1);
-          const start = performance.now();
-          let i = 0;
-          while (performance.now() - start < 3000) {
-            const f0 = performance.now();
-            const x = cx + Math.sin(i / 20) * canvas.width * 0.12, y = cy + Math.cos(i / 27) * canvas.height * 0.08;
-            app.strokeSample(x, y, 1);
-            app.viewport.renderNow();
-            frames.push(performance.now() - f0);
-            i++;
-            await new Promise((r) => setTimeout(r, 0));
-          }
+          // RAF-paced like real pointer input: one stroke sample per animation frame; the app's own
+          // render-on-demand loop draws the frame. Frame time = interval between RAF callbacks.
+          await new Promise((done) => {
+            const start = performance.now();
+            let last = start, i = 0;
+            const tick = (now) => {
+              if (i > 0) frames.push(now - last);
+              last = now;
+              const x = cx + Math.sin(i / 20) * canvas.width * 0.12, y = cy + Math.cos(i / 27) * canvas.height * 0.08;
+              app.strokeSample(x, y, 1);
+              i++;
+              if (now - start < 3000) requestAnimationFrame(tick); else done();
+            };
+            requestAnimationFrame(tick);
+          });
           app.endStroke();
           const g = app.perf.geometryMs.slice().sort((a, b) => a - b), f = frames.slice().sort((a, b) => a - b);
           const q = (arr, p) => arr.length ? arr[Math.min(arr.length - 1, Math.floor(arr.length * p))] : 0;
@@ -697,13 +701,17 @@ async function main() {
         }
         // orbit render cost
         const orbit = [];
-        for (let k = 0; k < 60; k++) { const f0 = performance.now(); app.viewport.camera.position.applyAxisAngle(new THREE_V(0, 1, 0), 0.05); app.viewport.camera.lookAt(0, 0, 0); app.viewport.renderNow(); orbit.push(performance.now() - f0); }
+        await new Promise((done) => {
+          let last = 0, k = 0;
+          const tick = (now) => { if (last) orbit.push(now - last); last = now; app.viewport.controls.rotateLeft?.(0.05); app.viewport.camera.position.applyAxisAngle(new THREE_V(0, 1, 0), 0.05); app.viewport.camera.lookAt(app.viewport.controls.target); app.viewport.requestRender(); if (++k < 90) requestAnimationFrame(tick); else done(); };
+          requestAnimationFrame(tick);
+        });
         orbit.sort((a, b) => a - b);
         // export cost
         const e0 = performance.now();
         const { exportObjects } = window.__formengine.io ?? {};
         void exportObjects;
-        return { tris, setupMs: +setupMs.toFixed(0), brushes: results, orbitFrameP50: +orbit[30].toFixed(1), orbitFrameP95: +orbit[57].toFixed(1), exportNote: e0 ? 'see J1 for export' : '' };
+        return { tris, setupMs: +setupMs.toFixed(0), brushes: results, orbitFrameP50: +orbit[Math.floor(orbit.length / 2)].toFixed(1), orbitFrameP95: +orbit[Math.floor(orbit.length * 0.95)].toFixed(1), exportNote: e0 ? 'see J1 for export' : '' };
       }, [kind, detail]);
       ev[label] = r;
     }

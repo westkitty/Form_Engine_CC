@@ -239,3 +239,21 @@ describe('topology', () => {
     expect(m.triangleCount).toBeGreaterThan(t0 * 0.2);
   });
 });
+
+describe('normals', () => {
+  it('stay consistent with geometry after many overlapping dabs (re-touched vertices are refreshed)', () => {
+    const m = sphere();
+    const s = defaultSettings('draw');
+    const st = new SculptStroke(m, 'draw', s, s.radius, { x: true, y: false, z: false });
+    for (let i = 0; i < 12; i++) { st.dab(new THREE.Vector3(Math.sin(i) * 0.05, 0.5, Math.cos(i) * 0.05), 1, i % 3 !== 0); }
+    st.commit();
+    const stored = m.normals.slice();
+    const all: number[] = [];
+    for (let v = 0; v < m.vertexCount; v++) if (m.weldOf[v] === v) all.push(v);
+    const region = all.filter((v) => m.positions[v * 3 + 1] > 0.2);
+    m.updateNormals(region);
+    let worst = 0;
+    for (const v of region) worst = Math.max(worst, Math.abs(stored[v * 3] - m.normals[v * 3]), Math.abs(stored[v * 3 + 1] - m.normals[v * 3 + 1]), Math.abs(stored[v * 3 + 2] - m.normals[v * 3 + 2]));
+    expect(worst).toBeLessThan(1e-5);
+  });
+});

@@ -293,8 +293,12 @@ progress { width: 100%; height: 6px; accent-color: var(--brass); }
   .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: 48px minmax(0, 1fr) 60px 22px; grid-template-areas: "top" "view" "rail" "status"; }
   .only-narrow { display: inline-flex !important; }
   .topbar { gap: 6px; padding: 0 6px; }
+  .brand { font-size: 13px; }
   .brand-mark2, .brand-sep, .save-state { display: none; }
-  .proj-name { width: 100px; }
+  .proj { flex: 1; min-width: 0; }
+  .proj-name { width: 100%; }
+  .top-group.grow { flex: 0 0 auto; }
+  #btn-import, #btn-save, #btn-export, .hide-narrow { display: none !important; }
   .top-group.grow .btn.accent .lbl { display: none; }
   .top-group.grow .btn.accent { width: var(--tap); padding: 0; }
   .top-group.grow .menu-wrap .lbl { display: none; }

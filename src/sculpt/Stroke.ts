@@ -67,11 +67,15 @@ export class SculptStroke {
     readonly symmetry: SymmetrySettings,
   ) {
     this.mirrors = mirrorSigns(symmetry);
+    this.dirtyFlag = new Uint8Array(mesh.vertexCount);
     const bb = mesh.geometry.boundingBox!;
     this.planeEps = bb.getSize(new THREE.Vector3()).length() * 1e-5;
   }
 
+  private dirtyFlag: Uint8Array;
+  /** Called for every vertex a dab modifies: records its pre-stroke state once, and marks it dirty. */
   private touch = (c: number) => {
+    if (!this.dirtyFlag[c]) { this.dirtyFlag[c] = 1; this.dirtySinceNormals.push(c); }
     if (this.touchedSet.has(c)) return;
     const p = this.mesh.positions;
     this.touchedSet.set(c, this.touchedIds.length);
@@ -83,14 +87,15 @@ export class SculptStroke {
     if (this.symmetry.y && Math.abs(p[c * 3 + 1]) < this.planeEps) bits |= 2;
     if (this.symmetry.z && Math.abs(p[c * 3 + 2]) < this.planeEps) bits |= 4;
     this.onPlane.push(bits);
-    this.dirtySinceNormals.push(c);
   };
 
-  /** Apply one dab at a local-space surface point (all symmetry mirrors). */
-  dab(center: THREE.Vector3, pressure = 1) {
+  /**
+   * Apply one dab at a local-space surface point (all symmetry mirrors). With `defer`, normals, BVH refit
+   * and GPU upload are batched until `flush()` (used to apply all dabs of one pointer sample at once).
+   */
+  dab(center: THREE.Vector3, pressure = 1, defer = false) {
     const s = this.settings;
     const strength = Math.max(0, Math.min(1, s.strength * (s.pressure ? pressure : 1)));
-    this.dirtySinceNormals.length = 0;
     for (const m of this.mirrors) {
       const c = _mc.set(center.x * m.x, center.y * m.y, center.z * m.z);
       this.mesh.queryCanonical(c, this.localRadius, this.query, this.traversed);
@@ -100,10 +105,14 @@ export class SculptStroke {
       });
     }
     this.snapToPlanes();
-    this.afterEdit();
     this.dabCount++;
     this.lastCenter = center.clone();
+    if (defer) this.pending = true; else this.afterEdit();
   }
+
+  private pending = false;
+  /** Apply deferred normal/BVH/GPU updates. */
+  flush() { if (this.pending) this.afterEdit(); }
 
   /** Grab: capture the region under the pointer at stroke start. */
   beginGrab(center: THREE.Vector3) {
@@ -139,7 +148,9 @@ export class SculptStroke {
         this.mesh.setCanonical(v, g.origin[j * 3] + dx * w, g.origin[j * 3 + 1] + dy * w, g.origin[j * 3 + 2] + dz * w);
       }
     }
+    for (const c of this.dirtySinceNormals) this.dirtyFlag[c] = 0;
     this.dirtySinceNormals = this.grabGroups.flatMap((g) => Array.from(g.verts));
+    for (const c of this.dirtySinceNormals) this.dirtyFlag[c] = 1;
     this.snapToPlanes();
     this.afterEdit();
     this.dabCount++;
@@ -157,16 +168,20 @@ export class SculptStroke {
   }
 
   private afterEdit() {
+    this.pending = false;
     if (this.type === 'mask') { this.mesh.commitMask(); return; }
     this.mesh.updateNormals(this.dirtySinceNormals);
-    this.mesh.commitPositions(this.traversed);
+    this.mesh.commitPositions(this.traversed, this.mesh.vertexRange(this.dirtySinceNormals));
     this.traversed.clear();
+    for (const c of this.dirtySinceNormals) this.dirtyFlag[c] = 0;
+    this.dirtySinceNormals.length = 0;
   }
 
   get touchedCount() { return this.touchedIds.length; }
 
   /** Finish: returns an undo patch, or null if nothing changed. */
   commit(): VertexPatch | null {
+    this.flush();
     const n = this.touchedIds.length;
     if (!n) return null;
     const p = this.mesh.positions;
@@ -190,6 +205,7 @@ export class SculptStroke {
 
   /** Abort: restore every touched vertex to its pre-stroke state. */
   cancel() {
+    this.pending = false;
     const n = this.touchedIds.length;
     if (!n) return;
     for (let j = 0; j < n; j++) {

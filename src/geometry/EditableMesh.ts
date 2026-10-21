@@ -169,20 +169,27 @@ export class EditableMesh {
     const id = this.nextStamp();
     const idx = this.index, p = this.positions, w = this.weldOf;
     this.bvh.shapecast({
-      intersectsBounds: (box, _isLeaf, _score, _depth, nodeIndex) => {
+      // Only record nodes that intersect: refit treats a recorded node with no recorded children as
+      // "refit the whole subtree", so recording rejected nodes would refit far-away geometry every dab.
+      intersectsBounds: (box: THREE.Box3, _isLeaf: boolean, _score: number, _depth: number, nodeIndex: number) => {
+        if (!sphere.intersectsBox(box)) return 0 as any;
         if (traversed) traversed.add(nodeIndex);
-        return sphere.intersectsBox(box) ? (box.containsPoint(center) ? 2 : 1) as any : 0 as any;
+        return (box.containsPoint(center) ? 2 : 1) as any;
       },
-      intersectsTriangle: (_tri, triIndex) => {
-        for (let k = 0; k < 3; k++) {
-          const c = w[idx[triIndex * 3 + k]];
-          if (!this.mark(c, id)) continue;
+      // Range callback avoids constructing a triangle object per candidate (BVH is non-indirect, so
+      // triangle i of the range is index[3i..3i+2]).
+      intersectsRange: (offset: number, count: number, _contained: boolean, _depth: number, nodeIndex: number) => {
+        if (traversed) traversed.add(nodeIndex);
+        for (let t = offset * 3, end = (offset + count) * 3; t < end; t++) {
+          const c = w[idx[t]];
+          if (this.stamp[c] === id) continue;
+          this.stamp[c] = id;
           const dx = p[c * 3] - center.x, dy = p[c * 3 + 1] - center.y, dz = p[c * 3 + 2] - center.z;
           if (dx * dx + dy * dy + dz * dz <= r2) out.push(c);
         }
         return false;
       },
-    });
+    } as any);
     return out;
   }
 
@@ -203,6 +210,20 @@ export class EditableMesh {
    * Recompute smooth (welded, area-weighted) normals for the given canonical vertices and their one-ring.
    * Untouched vertices keep their original (possibly hard-edged) normals.
    */
+  /** [min, max] real vertex index covered by these canonical vertices and their one-ring (for upload ranges). */
+  vertexRange(canonical: ArrayLike<number>): [number, number] {
+    let lo = Infinity, hi = -1;
+    const visit = (c: number) => {
+      for (let d = this.dupStart[c]; d < this.dupStart[c + 1]; d++) { const v = this.dupList[d]; if (v < lo) lo = v; if (v > hi) hi = v; }
+    };
+    for (let i = 0; i < canonical.length; i++) {
+      const c = canonical[i];
+      visit(c);
+      for (let j = this.adjStart[c]; j < this.adjStart[c + 1]; j++) visit(this.adjList[j]);
+    }
+    return [lo === Infinity ? 0 : lo, hi];
+  }
+
   updateNormals(canonical: ArrayLike<number>) {
     const p = this.positions, nrm = this.normals, idx = this.index, w = this.weldOf;
     const id = this.nextStamp();
@@ -235,11 +256,19 @@ export class EditableMesh {
     void w;
   }
 
-  /** Mark buffers dirty and refit the BVH (topology unchanged). */
-  commitPositions(traversed?: Set<number>) {
+  /**
+   * Mark buffers dirty and refit the BVH (topology unchanged). With `range` [minVertex, maxVertex] only that
+   * slice of the position/normal buffers is uploaded to the GPU instead of the whole buffer.
+   */
+  commitPositions(traversed?: Set<number>, range?: [number, number]) {
     const g = this.geometry;
-    g.attributes.position.needsUpdate = true;
-    g.attributes.normal.needsUpdate = true;
+    const pa = g.attributes.position as THREE.BufferAttribute, na = g.attributes.normal as THREE.BufferAttribute;
+    if (range && range[1] >= range[0]) {
+      pa.addUpdateRange(range[0] * 3, (range[1] - range[0] + 1) * 3);
+      na.addUpdateRange(range[0] * 3, (range[1] - range[0] + 1) * 3);
+    }
+    pa.needsUpdate = true;
+    na.needsUpdate = true;
     if (traversed && traversed.size) this.bvh.refit(traversed);
     else this.bvh.refit();
     this.positionVersion++;
