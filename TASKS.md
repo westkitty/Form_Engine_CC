@@ -1,26 +1,30 @@
 # FORM//ENGINE — P0 task ledger
 
-Status values: TODO · WIP · PASS (with evidence path) · BLOCKED (reason) · UNVERIFIED (reason)
+Status values: PASS (with evidence) · UNVERIFIED (reason) · BLOCKED (reason) · NEEDS-APPROVAL. Full evidence: docs/VERIFICATION.md
 
 | # | P0 item | Status | Evidence |
 |---|---------|--------|----------|
-| 1 | Editable mesh core (weld, adjacency, BVH, normals) | WIP | |
-| 2 | Brushes: Draw, Inflate, Clay, Smooth, Grab, Flatten, Pinch, Crease, Mask | TODO | |
-| 3 | Symmetry + mask protection | TODO | |
-| 4 | Undo/redo transactions, cancel rollback | TODO | |
-| 5 | Viewport: orbit/pan/zoom, views, ortho, cursor, render-on-demand | TODO | |
-| 6 | Transform tools + numeric entry | TODO | |
-| 7 | Subdivide (real) / decimate (gated) | TODO | |
-| 8 | Import GLB/glTF/OBJ/STL + validation | TODO | |
-| 9 | Export GLB/OBJ/STL + roundtrip | TODO | |
-| 10 | Native project file (.formengine) save/open | TODO | |
-| 11 | IndexedDB autosave + recovery + gallery | TODO | |
-| 12 | Image lab: intake, reference planes, consent | TODO | |
-| 13 | Provider contract + Meshy adapter + proxy + job state machine | TODO | |
-| 14 | 2.5D relief mode (labelled) | TODO | |
-| 15 | Touch / pen / two-finger navigation | TODO | |
-| 16 | Diagnostics HUD + perf measurement | TODO | |
-| 17 | Responsive layout + a11y | TODO | |
-| 18 | Single-file artifact build | TODO | |
-| 19 | README, provider guide, format matrix, schema | TODO | |
-| 20 | Live image-to-3D | UNVERIFIED | needs provider credentials |
+| 1 | Editable mesh core (weld, adjacency, BVH, normals, topology versions) | PASS | tests/unit/brushes.test.ts |
+| 2 | Brushes: Draw, Inflate, Clay, Smooth, Grab, Flatten, Pinch, Crease, Mask | PASS | unit tests + E2E J1 |
+| 3 | Symmetry + mask protection | PASS | unit tests + J1 |
+| 4 | Undo/redo transactions, cancel rollback | PASS | unit tests + J1, J5 |
+| 5 | Viewport: orbit/pan/zoom, views, ortho, cursor, render-on-demand, context loss | PASS | J1, J6 |
+| 6 | Transform tools + numeric entry | PASS | J2 |
+| 7 | Subdivide (real) / decimate (meshoptimizer) | PASS | unit tests |
+| 8 | Import GLB/glTF/OBJ/STL/PLY + validation | PASS | io.test.ts, J2, J6 |
+| 9 | Export GLB/OBJ/STL + roundtrip | PASS | io.test.ts, J1, J2, J7 |
+| 10 | Native project file (.formengine) save/open | PASS | io.test.ts, J2 |
+| 11 | IndexedDB autosave + recovery + gallery | PASS | J2, J6 |
+| 12 | Image lab: intake, reference planes, consent | PASS | J3, J4 |
+| 13 | Provider contract + Meshy bridge + job state machine | PASS (fixture upstream) | reconstruction.test.ts, J3 |
+| 14 | 2.5D relief mode (labelled) | PASS | J4 |
+| 15 | Touch / pen / two-finger navigation | PASS (emulated) | J5 |
+| 16 | Diagnostics HUD + perf measurement | PASS (SwiftShader only) | e2e-results.json Performance |
+| 17 | Responsive layout + a11y basics | PASS (emulated viewports) | vqa screenshots |
+| 18 | Single-file artifact build + private publish | PASS | https://claude.ai/artifact/3ikLExJA5y3vD8HHRfFj3k |
+| 19 | README, provider guide, format matrix, schema | PASS | README.md, docs/ |
+| 20 | Free on-device image→3D | PASS | E2E J8, depthMesh.test.ts |
+| 20b | Free cloud 3D (TRELLIS Space) | UNVERIFIED | anonymous GPU quota exhausted from build env; API verified |
+| 20c | Meshy (paid, optional) | UNVERIFIED | not needed |
+| 21 | Real-GPU performance, real tablets, Safari/Firefox | UNVERIFIED | no hardware/browsers in build env |
+| 22 | Public deployment | PASS | https://westkitty.github.io/Form_Engine_CC/ (gh-pages) |

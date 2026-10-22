@@ -1,0 +1,626 @@
+{
+  "when": "2026-10-22T02:51:58.129Z",
+  "base": "http://localhost:4173/",
+  "results": [
+    {
+      "name": "J1 blank clay: sculpt, orbit, smooth, undo/redo, export GLB, re-import",
+      "status": "PASS",
+      "ms": 39660,
+      "evidence": {
+        "startMesh": {
+          "id": "obj_9fc0a88b2",
+          "verts": 24012,
+          "tris": 48020
+        },
+        "drawStroke": {
+          "maxDelta": 0.13187822699546814,
+          "movedComponents": 18012
+        },
+        "cameraUnmovedDuringStroke": [
+          1.6679016106502358,
+          1.1466823573220373,
+          2.293364714644075
+        ],
+        "orbitMovedCamera": 3.641361944275517,
+        "smoothStroke": {
+          "maxDelta": 0.0020323991775512695,
+          "movedComponents": 11684
+        },
+        "undoRestoresDraw": {
+          "maxDelta": 0,
+          "movedComponents": 0
+        },
+        "redoRestoresSmooth": {
+          "maxDelta": 0,
+          "movedComponents": 0
+        },
+        "radiusAfterIncrease": 0.33062499999999995,
+        "symmetryMovedBothSides": {
+          "left": 2241,
+          "right": 2296
+        },
+        "exportedGLB": {
+          "path": "test-results/e2e/j1-sculpture.glb",
+          "suggested": "Clay_Sphere.glb",
+          "bytes": 1153828
+        },
+        "reimportHausdorff": 0,
+        "differsFromPlainSphere": 0.15759984382276768,
+        "pageErrors": []
+      }
+    },
+    {
+      "name": "J2 imported Khronos Duck GLB: inspect, transform, sculpt, save, reload, export",
+      "status": "PASS",
+      "ms": 23497,
+      "evidence": {
+        "imported": {
+          "objects": 1,
+          "name": "LOD3spShape",
+          "tris": 4212,
+          "bounds": {
+            "min": [
+              -69.29850006103516,
+              9.929369926452637,
+              -61.32819747924805
+            ],
+            "max": [
+              96.17990112304688,
+              163.97000122070312,
+              53.92519760131836
+            ],
+            "size": [
+              165.47840118408203,
+              154.0406312942505,
+              115.2533950805664
+            ]
+          },
+          "hasUV": true,
+          "material": "MeshStandardMaterial",
+          "hasTexture": true,
+          "scale": [
+            0.009999999776482582,
+            0.009999999776482582,
+            0.009999999776482582
+          ]
+        },
+        "positionAfterNumeric": [
+          0,
+          0.25,
+          0
+        ],
+        "sculptOnImported": {
+          "maxDelta": 9.437633514404297,
+          "movedComponents": 84
+        },
+        "projectFile": {
+          "path": "test-results/e2e/j2-duck.formengine",
+          "suggested": "Untitled_sculpture.formengine",
+          "bytes": 132208
+        },
+        "afterReload": {
+          "n": 1,
+          "name": "LOD3spShape",
+          "hasTexture": true
+        },
+        "reloadHausdorff": 0,
+        "projectFileHausdorff": 0,
+        "continueEditing": {
+          "maxDelta": 5.746818542480469,
+          "movedComponents": 60
+        },
+        "exportedGLB": {
+          "path": "test-results/e2e/j2-duck-edited.glb",
+          "suggested": "LOD3spShape.glb",
+          "bytes": 177364
+        },
+        "exportHausdorff": 0,
+        "reimportedHasTexture": true,
+        "pageErrors": []
+      }
+    },
+    {
+      "name": "J3 image → bridge (FIXTURE upstream) → consent → job → review → adopt → sculpt → export",
+      "status": "PASS",
+      "ms": 43232,
+      "evidence": {
+        "noUploadBeforeConsent": true,
+        "providerStatus": "Connected: Meshy via http://127.0.0.1:8799",
+        "requestsBeforeConsent": 0,
+        "jobStateLog": [
+          "2:44:00 AM idle",
+          "2:44:00 AM validating",
+          "2:44:00 AM ready",
+          "2:44:00 AM awaiting-consent",
+          "2:44:00 AM submitting",
+          "2:44:00 AM queued — remote task single:fixture-0001-task",
+          "2:44:00 AM queued",
+          "2:44:06 AM processing",
+          "2:44:11 AM downloading",
+          "2:44:11 AM verifying",
+          "2:44:11 AM ready-to-edit"
+        ],
+        "bridgeRequests": [
+          "GET /v1/capabilities",
+          "GET /v1/capabilities",
+          "POST /v1/jobs",
+          "GET /v1/jobs/single%3Afixture-0001-task",
+          "GET /v1/jobs/single%3Afixture-0001-task",
+          "GET /v1/jobs/single%3Afixture-0001-task",
+          "GET /v1/jobs/single%3Afixture-0001-task/model"
+        ],
+        "adopted": {
+          "id": "obj_1f2c61575",
+          "source": "reconstruction",
+          "jobId": "single:fixture-0001-task",
+          "provider": "Meshy",
+          "tris": 4096,
+          "warning": "Provider-generated from 2D image(s): unseen surfaces were inferred, not measured."
+        },
+        "sculptOnGenerated": {
+          "maxDelta": 0.07334360480308533,
+          "movedComponents": 763
+        },
+        "exportedGLB": {
+          "path": "test-results/e2e/j3-generated-edited.glb",
+          "suggested": "FixtureReconstruction.glb",
+          "bytes": 120960
+        },
+        "reimportHausdorff": 0,
+        "note": "Upstream was the TEST FIXTURE mock-meshy-server; live Meshy is UNVERIFIED.",
+        "pageErrors": []
+      }
+    },
+    {
+      "name": "J4 no provider: honest not-connected state, reference planes, 2.5D relief, keep sculpting",
+      "status": "PASS",
+      "ms": 12337,
+      "evidence": {
+        "status": "Provider not connected",
+        "submitButtonPresent": false,
+        "onDeviceOffered": true,
+        "references": 1,
+        "relief": {
+          "source": "relief",
+          "warning": "Height-field relief derived from image brightness/alpha. Not a 3D reconstruction.",
+          "tris": 103680,
+          "watertight": true
+        },
+        "sculptAfter": {
+          "maxDelta": 0.13187822699546814,
+          "movedComponents": 18012
+        },
+        "referenceInExport": false,
+        "pageErrors": []
+      }
+    },
+    {
+      "name": "J5 touch/pen: one-finger sculpt, two-finger navigates without deforming, pen pressure",
+      "status": "PASS",
+      "ms": 26923,
+      "evidence": {
+        "oneFinger": {
+          "maxDelta": 0.05772119760513306,
+          "movedComponents": 12997
+        },
+        "twoFingerDeformation": {
+          "maxDelta": 0,
+          "movedComponents": 0
+        },
+        "twoFingerCameraMove": 0.4980880270303319,
+        "historyAddedByTwoFinger": 0,
+        "penLight": 0.01234939694404602,
+        "penHeavy": 0.05182617902755737,
+        "penPressureReported": true,
+        "pageErrors": []
+      }
+    },
+    {
+      "name": "J6 failure recovery: malformed/oversized import leaves scene intact, autosave recovery, context loss",
+      "status": "PASS",
+      "ms": 18800,
+      "evidence": {
+        "toasts": [
+          "error: Failed to parse broken.glb: THREE.GLTFLoader: Legacy binary file detected.",
+          "error: Mesh \"0\" is invalid: Mesh has 1 non-finite / absurd coordinates.",
+          "error: Failed to parse junk.stl: Offset is outside the bounds of the DataView"
+        ],
+        "unchanged": {
+          "maxDelta": 0,
+          "movedComponents": 0
+        },
+        "afterCorruptProject": {
+          "maxDelta": 0,
+          "movedComponents": 0
+        },
+        "autosaveRecoveryMaxDelta": 0,
+        "damagedSlotFallback": {
+          "ok": true,
+          "toast": "Latest autosave was damaged; restored the previous valid autosave."
+        },
+        "contextLoss": {
+          "overlay": true,
+          "cleared": true,
+          "objects": 1
+        },
+        "pageErrors": []
+      }
+    },
+    {
+      "name": "J7 reuse elsewhere: OBJ and STL (mm) export → re-import in new scene",
+      "status": "PASS",
+      "ms": 23659,
+      "evidence": {
+        "objFile": {
+          "path": "test-results/e2e/j7-sculpture.obj",
+          "suggested": "Clay_Sphere.obj",
+          "bytes": 4824547
+        },
+        "objHausdorff": 0,
+        "objToasts": [
+          "Imported 1 mesh(es), 48,020 triangles from j7-sculpture.obj. | \"Clay Sphere\" was a non-indexed triangle soup; vertices were welded and normals recomputed smooth."
+        ],
+        "stlFile": {
+          "path": "test-results/e2e/j7-sculpture.stl",
+          "suggested": "Clay_Sphere.stl",
+          "bytes": 2401084
+        },
+        "stlHausdorff": 0.000022932843506643392,
+        "stlToasts": [
+          "Brush radius adapted to the model size (208 m).",
+          "Imported 1 mesh(es), 48,020 triangles from j7-sculpture.stl. | STL carries geometry only: no materials, UVs or units. Assumed scene units. | \"j7-sculpture\" was a non-indexed triangle soup; vertices were welded and normals recomputed smooth."
+        ],
+        "asymmetryHausdorffToMirror": 0.060025996573196586,
+        "pageErrors": []
+      }
+    },
+    {
+      "name": "J8 free on-device image → 3D (Depth Anything V2 in the browser) → sculpt → export",
+      "status": "PASS",
+      "ms": 34511,
+      "evidence": {
+        "wallSeconds": 16.905,
+        "status": "Your 3D model is ready. Sculpt it like any other shape.",
+        "labClosedOnSuccess": true,
+        "externalRequests": [
+          "GET huggingface.co/onnx-community/depth-anything-v2-small/resolve/main/config.json",
+          "GET huggingface.co/api/resolve-cache/models/onnx-community/depth-anything-v2-small/4472b7362082ad9",
+          "GET huggingface.co/onnx-community/depth-anything-v2-small/resolve/main/preprocessor_config.json",
+          "GET huggingface.co/onnx-community/depth-anything-v2-small/resolve/main/onnx/model_quantized.onnx",
+          "GET us.aws.cdn.hf.co/xet-bridge-us/666c2f3ce0b2d43ff344aa96/c1572be4c19dc19912afee6747fcebee9a2934b7",
+          "GET cdn.jsdelivr.net/npm/onnxruntime-web@1.31.0-dev.20260914-8d85527a0/dist/ort-wasm-simd-threaded.a"
+        ],
+        "uploads": [],
+        "mesh": {
+          "id": "obj_e44924374",
+          "name": "Depth 3D mushroom",
+          "source": "depth",
+          "detail": "On-device onnx-community/depth-anything-v2-small (Apache-2.0); subject from image transparency; 160×160 grid",
+          "warning": "Front surface from an estimated (relative) depth map, not a measurement. Back and sides are inferred. Sculpt to refine.",
+          "tris": 47988,
+          "watertight": true,
+          "shells": 1,
+          "nonManifold": 0,
+          "hasTexture": true,
+          "size": [
+            0.8375000059604645,
+            0.856249988079071,
+            0.6532180607318878
+          ]
+        },
+        "sculpt": {
+          "maxDelta": 0.10155797377228737,
+          "movedComponents": 3178
+        },
+        "exportedGLB": {
+          "path": "test-results/e2e/j8-ondevice-edited.glb",
+          "suggested": "Depth_3D_mushroom.glb",
+          "bytes": 1946620
+        },
+        "reimportHausdorff": 0,
+        "reimportedHasTexture": true,
+        "pageErrors": []
+      }
+    },
+    {
+      "name": "J9 tablet & pen: palm rejection, finger-tap undo/redo, side-button invert, edge sliders, installable app",
+      "status": "PASS",
+      "ms": 24500,
+      "evidence": {
+        "sizeSlider": {
+          "before": 0.25,
+          "after": 0.4820570513667909
+        },
+        "penOutward": 50.024886135558184,
+        "sideButtonInward": -48.77248489440482,
+        "penSeen": true,
+        "palmDelta": {
+          "maxDelta": 0,
+          "movedComponents": 0
+        },
+        "twoFingerTapUndo": {
+          "before": 2,
+          "after": 1,
+          "tap": {
+            "max": 2,
+            "moved": false,
+            "ms": 375
+          }
+        },
+        "threeFingerTapRedo": 2,
+        "lastTap": {
+          "max": 3,
+          "moved": false,
+          "ms": 361
+        },
+        "afterRedo": {
+          "maxDelta": 0,
+          "movedComponents": 0
+        },
+        "manifest": {
+          "display": "fullscreen",
+          "display_override": [
+            "fullscreen",
+            "standalone",
+            "minimal-ui"
+          ],
+          "start_url": "./?app=1",
+          "icons": [
+            {
+              "src": "icon-192.png",
+              "sizes": "192x192",
+              "purpose": "any",
+              "ok": true,
+              "type": "image/png"
+            },
+            {
+              "src": "icon-512.png",
+              "sizes": "512x512",
+              "purpose": "any",
+              "ok": true,
+              "type": "image/png"
+            },
+            {
+              "src": "icon-maskable-512.png",
+              "sizes": "512x512",
+              "purpose": "maskable",
+              "ok": true,
+              "type": "image/png"
+            }
+          ]
+        },
+        "fullscreenButton": true,
+        "pageErrors": []
+      }
+    },
+    {
+      "name": "Visual QA screenshots 1440x900, 1024x768, 768x1024, 390x844",
+      "status": "PASS",
+      "ms": 31700,
+      "evidence": {
+        "1440x900": {
+          "horizontalOverflow": false
+        },
+        "1232x770": {
+          "horizontalOverflow": false
+        },
+        "1024x768": {
+          "horizontalOverflow": false
+        },
+        "768x1024": {
+          "horizontalOverflow": false
+        },
+        "390x844": {
+          "horizontalOverflow": false
+        }
+      }
+    },
+    {
+      "name": "Resource lifetime: 20 new-project + import/remove cycles",
+      "status": "PASS",
+      "ms": 35593,
+      "evidence": {
+        "before": {
+          "geometries": 6,
+          "textures": 7
+        },
+        "after": {
+          "geometries": 6,
+          "textures": 7,
+          "history": 0,
+          "objects": 1,
+          "overlays": 2
+        }
+      }
+    },
+    {
+      "name": "Performance benchmark (headless Chromium + SwiftShader software GL)",
+      "status": "PASS",
+      "ms": 216375,
+      "evidence": {
+        "environment": {
+          "ua": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/141.0.7390.37 Safari/537.36",
+          "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+          "dpr": 1,
+          "cores": 4
+        },
+        "~10k tris": {
+          "tris": 10580,
+          "setupMs": 88,
+          "brushes": {
+            "draw": {
+              "samples": 19,
+              "geomP50": 1.1,
+              "geomP95": 12.5,
+              "frameP50": 16.7,
+              "frameP95": 2050
+            },
+            "smooth": {
+              "samples": 28,
+              "geomP50": 1,
+              "geomP95": 1.6,
+              "frameP50": 116.7,
+              "frameP95": 266.5
+            },
+            "clay": {
+              "samples": 21,
+              "geomP50": 0.9,
+              "geomP95": 2.3,
+              "frameP50": 133.3,
+              "frameP95": 283.3
+            },
+            "grab": {
+              "samples": 24,
+              "geomP50": 0.7,
+              "geomP95": 1.2,
+              "frameP50": 133.3,
+              "frameP95": 150
+            },
+            "pinch": {
+              "samples": 23,
+              "geomP50": 1,
+              "geomP95": 1.6,
+              "frameP50": 133.2,
+              "frameP95": 233.4
+            }
+          },
+          "orbitFrameP50": 116.6,
+          "orbitFrameP95": 250,
+          "exportNote": "see J1 for export"
+        },
+        "~100k tris": {
+          "tris": 106580,
+          "setupMs": 586,
+          "brushes": {
+            "draw": {
+              "samples": 22,
+              "geomP50": 8.9,
+              "geomP95": 21.1,
+              "frameP50": 133.3,
+              "frameP95": 499.8
+            },
+            "smooth": {
+              "samples": 10,
+              "geomP50": 8.8,
+              "geomP95": 21.1,
+              "frameP50": 316.6,
+              "frameP95": 600
+            },
+            "clay": {
+              "samples": 5,
+              "geomP50": 8.7,
+              "geomP95": 36.2,
+              "frameP50": 316.7,
+              "frameP95": 949.9
+            },
+            "grab": {
+              "samples": 8,
+              "geomP50": 9.4,
+              "geomP95": 13.2,
+              "frameP50": 333.4,
+              "frameP95": 666.6
+            },
+            "pinch": {
+              "samples": 13,
+              "geomP50": 8.6,
+              "geomP95": 22.2,
+              "frameP50": 300,
+              "frameP95": 649.9
+            }
+          },
+          "orbitFrameP50": 300,
+          "orbitFrameP95": 600,
+          "exportNote": "see J1 for export"
+        },
+        "~200k tris": {
+          "tris": 204020,
+          "setupMs": 972,
+          "brushes": {
+            "draw": {
+              "samples": 6,
+              "geomP50": 25.7,
+              "geomP95": 59.5,
+              "frameP50": 383.3,
+              "frameP95": 1649.9
+            },
+            "smooth": {
+              "samples": 6,
+              "geomP50": 17.3,
+              "geomP95": 50.1,
+              "frameP50": 333.4,
+              "frameP95": 900
+            },
+            "clay": {
+              "samples": 9,
+              "geomP50": 16.2,
+              "geomP95": 40,
+              "frameP50": 133.3,
+              "frameP95": 1000
+            },
+            "grab": {
+              "samples": 6,
+              "geomP50": 15.8,
+              "geomP95": 22.7,
+              "frameP50": 499.9,
+              "frameP95": 750
+            },
+            "pinch": {
+              "samples": 7,
+              "geomP50": 16.8,
+              "geomP95": 40.5,
+              "frameP50": 483.3,
+              "frameP95": 933.3
+            }
+          },
+          "orbitFrameP50": 433.3,
+          "orbitFrameP95": 933.4,
+          "exportNote": "see J1 for export"
+        },
+        "~430k tris (subdivided)": {
+          "tris": 426320,
+          "setupMs": 1582,
+          "brushes": {
+            "draw": {
+              "samples": 5,
+              "geomP50": 33.3,
+              "geomP95": 91.6,
+              "frameP50": 483.4,
+              "frameP95": 1849.9
+            },
+            "smooth": {
+              "samples": 2,
+              "geomP50": 45.5,
+              "geomP95": 111.3,
+              "frameP50": 2083.2,
+              "frameP95": 2083.2
+            },
+            "clay": {
+              "samples": 4,
+              "geomP50": 36.6,
+              "geomP95": 91.9,
+              "frameP50": 516.7,
+              "frameP95": 1416.7
+            },
+            "grab": {
+              "samples": 6,
+              "geomP50": 26.4,
+              "geomP95": 31,
+              "frameP50": 483.3,
+              "frameP95": 1416.7
+            },
+            "pinch": {
+              "samples": 2,
+              "geomP50": 33.7,
+              "geomP95": 83.3,
+              "frameP50": 1699.9,
+              "frameP95": 1699.9
+            }
+          },
+          "orbitFrameP50": 783.4,
+          "orbitFrameP95": 1599.8,
+          "exportNote": "see J1 for export"
+        }
+      }
+    }
+  ]
+}

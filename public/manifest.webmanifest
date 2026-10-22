@@ -1,0 +1,25 @@
+{
+  "id": "./",
+  "name": "FORM//ENGINE — 3D sculpting",
+  "short_name": "FORM",
+  "description": "Sculpt clay, open 3D models and turn photos into 3D — free, in your browser.",
+  "start_url": "./?app=1",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#121418",
+  "theme_color": "#121418",
+  "categories": ["graphics", "design", "productivity"],
+  "launch_handler": { "client_mode": ["focus-existing", "auto"] },
+  "handle_links": "preferred",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "file_handlers": [
+    { "action": "./?app=1", "accept": { "model/gltf-binary": [".glb"], "model/gltf+json": [".gltf"], "model/stl": [".stl"], "text/plain": [".obj"], "application/zip": [".formengine"] } }
+  ]
+}

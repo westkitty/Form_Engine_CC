@@ -6,14 +6,18 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "build:artifact": "vite build --mode artifact",
+    "build:artifact": "vite build --mode artifact && node scripts/make-artifact-page.mjs",
     "preview": "vite preview --port 4173 --strictPort",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "node tests/e2e/run-e2e.mjs",
-    "proxy": "node server/reconstruction-proxy.mjs"
+    "proxy": "node server/reconstruction-proxy.mjs",
+    "test:artifact": "vite build --mode artifact && node tests/e2e/artifact-check.mjs",
+    "fetch:samples": "mkdir -p test-results/external && curl -sSL -o test-results/external/Duck.glb https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Duck/glTF-Binary/Duck.glb && curl -sSL -o test-results/external/BoxTextured.glb https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/BoxTextured/glTF-Binary/BoxTextured.glb && mkdir -p test-results/free3d && curl -sSL -o test-results/free3d/mushroom.png https://huggingface.co/spaces/trellis-community/TRELLIS/resolve/main/assets/example_image/typical_building_mushroom.png"
   },
   "dependencies": {
+    "@gradio/client": "^2.7.1",
+    "@huggingface/transformers": "^4.3.1",
     "fflate": "^0.8.3",
     "three": "^0.186.1",
     "three-mesh-bvh": "^0.9.16"
@@ -26,5 +30,8 @@
     "vite": "^8.3.5",
     "vite-plugin-singlefile": "^2.3.4",
     "vitest": "^5.0.5"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

@@ -1,0 +1,53 @@
+{
+  "when": "2026-10-22T00:50:08.669Z",
+  "base": "https://westkitty.github.io/Form_Engine_CC/",
+  "results": [
+    {
+      "name": "J8 free on-device image → 3D (Depth Anything V2 in the browser) → sculpt → export",
+      "status": "PASS",
+      "ms": 33193,
+      "evidence": {
+        "status": "Done in 12.8 s (depth 12.5 s). Subject from image transparency.",
+        "wallSeconds": 12.789,
+        "externalRequests": [
+          "GET huggingface.co/onnx-community/depth-anything-v2-small/resolve/main/config.json",
+          "GET huggingface.co/api/resolve-cache/models/onnx-community/depth-anything-v2-small/4472b7362082ad9",
+          "GET huggingface.co/onnx-community/depth-anything-v2-small/resolve/main/preprocessor_config.json",
+          "GET huggingface.co/onnx-community/depth-anything-v2-small/resolve/main/onnx/model_quantized.onnx",
+          "GET us.aws.cdn.hf.co/xet-bridge-us/666c2f3ce0b2d43ff344aa96/c1572be4c19dc19912afee6747fcebee9a2934b7",
+          "GET cdn.jsdelivr.net/npm/onnxruntime-web@1.31.0-dev.20260914-8d85527a0/dist/ort-wasm-simd-threaded.a"
+        ],
+        "uploads": [],
+        "mesh": {
+          "id": "obj_ecaa73bc4",
+          "name": "Depth 3D mushroom",
+          "source": "depth",
+          "detail": "On-device onnx-community/depth-anything-v2-small (Apache-2.0); subject from image transparency; 160×160 grid",
+          "warning": "Front surface from an estimated (relative) depth map, not a measurement. Back and sides are inferred. Sculpt to refine.",
+          "tris": 47988,
+          "watertight": true,
+          "shells": 1,
+          "nonManifold": 0,
+          "hasTexture": true,
+          "size": [
+            0.8375000059604645,
+            0.856249988079071,
+            0.6532180607318878
+          ]
+        },
+        "sculpt": {
+          "maxDelta": 0.11045104265213013,
+          "movedComponents": 3100
+        },
+        "exportedGLB": {
+          "path": "test-results/e2e/j8-ondevice-edited.glb",
+          "suggested": "Depth_3D_mushroom.glb",
+          "bytes": 1946620
+        },
+        "reimportHausdorff": 0,
+        "reimportedHasTexture": true,
+        "pageErrors": []
+      }
+    }
+  ]
+}

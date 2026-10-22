@@ -38,8 +38,12 @@ export class EditableMesh {
   bvh!: MeshBVH;
   /** Incremented every time vertex positions change (refit is valid). */
   positionVersion = 0;
-  /** Incremented every time index/vertex count changes (patches across this boundary are invalid). */
+  /**
+   * Identity of the current vertex set (count + order). Globally unique per new topology; restoring a
+   * snapshot restores its version so vertex patches recorded against it become valid again.
+   */
   topologyVersion = 0;
+  static nextTopology = 1;
 
   constructor(geometry: THREE.BufferGeometry) {
     this.geometry = prepareGeometry(geometry);
@@ -47,7 +51,7 @@ export class EditableMesh {
   }
 
   /** Rebuild every derived structure. Call after any topology change. */
-  rebuildTopology() {
+  rebuildTopology(restoreVersion?: number) {
     const g = this.geometry;
     this.positions = g.attributes.position.array as Float32Array;
     if (!g.attributes.normal) g.computeVertexNormals();
@@ -59,7 +63,7 @@ export class EditableMesh {
     this.mask = g.attributes.aMask.array as Float32Array;
 
     // BVH build reorders the index buffer in place; build it first so all triangle adjacency matches.
-    this.bvh = new MeshBVH(g, { maxLeafSize: 16 });
+    this.bvh = new MeshBVH(g, { targetLeafSize: 16 });
     (g as any).boundsTree = this.bvh;
     this.index = g.index!.array as Uint32Array;
     this.triangleCount = this.index.length / 3;
@@ -70,7 +74,7 @@ export class EditableMesh {
     this.stampId = 1;
     g.computeBoundingBox();
     g.computeBoundingSphere();
-    this.topologyVersion++;
+    this.topologyVersion = restoreVersion ?? EditableMesh.nextTopology++;
     this.positionVersion++;
   }
 
@@ -165,20 +169,27 @@ export class EditableMesh {
     const id = this.nextStamp();
     const idx = this.index, p = this.positions, w = this.weldOf;
     this.bvh.shapecast({
-      intersectsBounds: (box, _isLeaf, _score, _depth, nodeIndex) => {
+      // Only record nodes that intersect: refit treats a recorded node with no recorded children as
+      // "refit the whole subtree", so recording rejected nodes would refit far-away geometry every dab.
+      intersectsBounds: (box: THREE.Box3, _isLeaf: boolean, _score: number, _depth: number, nodeIndex: number) => {
+        if (!sphere.intersectsBox(box)) return 0 as any;
         if (traversed) traversed.add(nodeIndex);
-        return sphere.intersectsBox(box) ? (box.containsPoint(center) ? 2 : 1) as any : 0 as any;
+        return (box.containsPoint(center) ? 2 : 1) as any;
       },
-      intersectsTriangle: (_tri, triIndex) => {
-        for (let k = 0; k < 3; k++) {
-          const c = w[idx[triIndex * 3 + k]];
-          if (!this.mark(c, id)) continue;
+      // Range callback avoids constructing a triangle object per candidate (BVH is non-indirect, so
+      // triangle i of the range is index[3i..3i+2]).
+      intersectsRange: (offset: number, count: number, _contained: boolean, _depth: number, nodeIndex: number) => {
+        if (traversed) traversed.add(nodeIndex);
+        for (let t = offset * 3, end = (offset + count) * 3; t < end; t++) {
+          const c = w[idx[t]];
+          if (this.stamp[c] === id) continue;
+          this.stamp[c] = id;
           const dx = p[c * 3] - center.x, dy = p[c * 3 + 1] - center.y, dz = p[c * 3 + 2] - center.z;
           if (dx * dx + dy * dy + dz * dz <= r2) out.push(c);
         }
         return false;
       },
-    });
+    } as any);
     return out;
   }
 
@@ -199,6 +210,20 @@ export class EditableMesh {
    * Recompute smooth (welded, area-weighted) normals for the given canonical vertices and their one-ring.
    * Untouched vertices keep their original (possibly hard-edged) normals.
    */
+  /** [min, max] real vertex index covered by these canonical vertices and their one-ring (for upload ranges). */
+  vertexRange(canonical: ArrayLike<number>): [number, number] {
+    let lo = Infinity, hi = -1;
+    const visit = (c: number) => {
+      for (let d = this.dupStart[c]; d < this.dupStart[c + 1]; d++) { const v = this.dupList[d]; if (v < lo) lo = v; if (v > hi) hi = v; }
+    };
+    for (let i = 0; i < canonical.length; i++) {
+      const c = canonical[i];
+      visit(c);
+      for (let j = this.adjStart[c]; j < this.adjStart[c + 1]; j++) visit(this.adjList[j]);
+    }
+    return [lo === Infinity ? 0 : lo, hi];
+  }
+
   updateNormals(canonical: ArrayLike<number>) {
     const p = this.positions, nrm = this.normals, idx = this.index, w = this.weldOf;
     const id = this.nextStamp();
@@ -231,11 +256,19 @@ export class EditableMesh {
     void w;
   }
 
-  /** Mark buffers dirty and refit the BVH (topology unchanged). */
-  commitPositions(traversed?: Set<number>) {
+  /**
+   * Mark buffers dirty and refit the BVH (topology unchanged). With `range` [minVertex, maxVertex] only that
+   * slice of the position/normal buffers is uploaded to the GPU instead of the whole buffer.
+   */
+  commitPositions(traversed?: Set<number>, range?: [number, number]) {
     const g = this.geometry;
-    g.attributes.position.needsUpdate = true;
-    g.attributes.normal.needsUpdate = true;
+    const pa = g.attributes.position as THREE.BufferAttribute, na = g.attributes.normal as THREE.BufferAttribute;
+    if (range && range[1] >= range[0]) {
+      pa.addUpdateRange(range[0] * 3, (range[1] - range[0] + 1) * 3);
+      na.addUpdateRange(range[0] * 3, (range[1] - range[0] + 1) * 3);
+    }
+    pa.needsUpdate = true;
+    na.needsUpdate = true;
     if (traversed && traversed.size) this.bvh.refit(traversed);
     else this.bvh.refit();
     this.positionVersion++;
@@ -251,7 +284,7 @@ export class EditableMesh {
   }
 
   /** Replace the whole geometry (topology change). */
-  replaceGeometry(geometry: THREE.BufferGeometry) {
+  replaceGeometry(geometry: THREE.BufferGeometry, restoreVersion?: number) {
     const old = this.geometry;
     const prepared = prepareGeometry(geometry);
     // Swap arrays into the existing geometry object so meshes referencing it stay valid.
@@ -260,7 +293,8 @@ export class EditableMesh {
     old.setIndex(prepared.index);
     old.clearGroups();
     for (const gr of prepared.groups) old.addGroup(gr.start, gr.count, gr.materialIndex);
-    this.rebuildTopology();
+    old.boundingBox = null; old.boundingSphere = null;
+    this.rebuildTopology(restoreVersion);
   }
 
   /** Snapshot of all geometry arrays (for topology-change undo and persistence). */
@@ -270,7 +304,7 @@ export class EditableMesh {
       const attr = a as THREE.BufferAttribute;
       attrs[name] = { array: (attr.array as Float32Array).slice(), itemSize: attr.itemSize, normalized: attr.normalized };
     }
-    return { attributes: attrs, index: this.index.slice(), groups: this.geometry.groups.map((g) => ({ ...g })) };
+    return { attributes: attrs, index: this.index.slice(), groups: this.geometry.groups.map((g) => ({ ...g })), topologyVersion: this.topologyVersion };
   }
 
   stats() {
@@ -297,6 +331,7 @@ export interface GeometrySnapshot {
   attributes: Record<string, { array: Float32Array | Uint16Array | Uint8Array | Int16Array | Int8Array | Uint32Array; itemSize: number; normalized: boolean }>;
   index: Uint32Array;
   groups: { start: number; count: number; materialIndex?: number }[];
+  topologyVersion: number;
 }
 
 export function geometryFromSnapshot(s: GeometrySnapshot): THREE.BufferGeometry {

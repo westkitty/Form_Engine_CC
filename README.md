@@ -1,0 +1,159 @@
+# FORM//ENGINE
+
+A browser-native 3D sculpting workbench. You can:
+
+- sculpt real mesh geometry with nine brushes;
+- import GLB/glTF/OBJ/STL/PLY and edit the vertices;
+- turn images into editable geometry through an honest, clearly labelled pipeline;
+- export GLB/OBJ/STL files that contain your edits.
+
+Everything runs locally in the browser, including image→3D (on-device depth model). There is no account, backend, telemetry or paid service. An optional free cloud model gives fuller 3D.
+
+> Status: see [docs/VERIFICATION.md](docs/VERIFICATION.md) for what is proven, with test evidence, and what is not yet verified.
+
+## Quick start
+
+```bash
+npm ci --ignore-scripts   # skips a Node-only ONNX binary download the browser app never uses
+npm run dev            # http://localhost:5173 (temporary dev server)
+npm run build          # typecheck + production build → dist/
+npm run preview        # serve dist/ at http://localhost:4173
+npm test               # geometry, IO round-trip and provider-contract tests (Vitest)
+npm run fetch:samples  # download Khronos sample GLBs used by the browser tests
+npm run test:e2e       # 7 user journeys + visual QA + leak + perf in headless Chromium (needs `npm run preview` build)
+npm run build:artifact # single self-contained HTML → dist-artifact/index.html
+npm run test:artifact  # runs that single file top-level and inside a sandboxed iframe
+```
+
+Node ≥ 20. The browser tests use Playwright's Chromium. If a project pins a different Playwright version, set `executablePath`.
+
+## What works (local, no provider needed)
+
+| Area | Implemented |
+|---|---|
+| Brushes | Draw, Clay Build, Inflate, Smooth (Laplacian, boundary-protecting), Grab, Flatten, Pinch, Crease, Mask. Each brush is a distinct operation, documented in `src/sculpt/brushes.ts` |
+| Brush controls | World-space radius, strength, falloff (smooth/sphere/linear/sharp/constant), spacing, invert, pen pressure, X/Y/Z symmetry with on-plane snapping, mask clear/invert/fill, per-brush remembered settings |
+| Strokes | Transactions: begin → dab → commit/cancel. `pointercancel`, Esc and a second touch roll back exactly. Large pointer jumps are resampled and re-projected onto the surface |
+| History | Undo/redo of strokes (compact vertex patches), masks, transforms, add/delete/duplicate/rename, material, topology ops (full snapshots), reference images |
+| Topology | Midpoint subdivision (real new vertices, attributes interpolated). Decimation (three.js `SimplifyModifier` = meshoptimizer). Remove debris, flip winding, centre pivot |
+| Scene | Multiple objects, outliner with rename/visibility/lock, numeric transforms, transform gizmo, provenance per object |
+| View | Orbit/pan/zoom, front/right/top/iso views, ortho toggle, frame, view-mode "Material Theater" (studio, clay, matcap, flat, normals, UV checker, silhouette), wireframe overlay, presentation turntable, diagnostics HUD |
+| Mesh anatomy | Watertightness, shells, boundary/non-manifold edges, winding conflicts, degenerate/thin triangles, with explanations |
+| Import | GLB, glTF (+ .bin/textures dropped together), OBJ (+ MTL/textures), STL, PLY. Content sniffing, size/complexity limits, validation before anything touches the scene |
+| Export | GLB (binary glTF, materials/textures, node transforms or baked), OBJ (geometry/normals/UVs), STL (binary/ASCII, unit conversion, printability warnings) |
+| Projects | `.formengine` portable ZIP project ([schema](docs/PROJECT_FORMAT.md)); IndexedDB autosave with two checksummed slots; corruption fallback; local gallery |
+| Image Lab | PNG/JPEG/WebP intake (EXIF orientation, size limits), crop/rotate/fit-to-subject, view labels. **Free on-device 3D** (depth model in the browser). Reference sculpt, 2.5D relief. **Free cloud 3D** (TRELLIS on Hugging Face) with consent, job states and review/adopt. Optional self-hosted bridge |
+| Devices | Mouse, pen (pressure), touch (one finger sculpts, two fingers navigate and cancel any stroke), pen-only mode, tablet and phone layouts, high-contrast mode, reduced motion, keyboard access |
+| Offline | PWA service worker caches the editor shell and assets (HTTPS only). Reconstruction always needs the network |
+
+## Image → 3D (all free options first)
+
+| Option | Cost | Where it runs | What you get |
+|---|---|---|---|
+| **1 · On-device 3D** (default) | Free, no account | In your browser. The image never leaves your device | Depth Anything V2 (Apache-2.0) estimates depth, then FORM//ENGINE builds a closed, watertight, textured mesh: the front comes from the estimated depth, the back and sides are inferred. The model (~27 MB) downloads once and is cached |
+| 2 · Reference sculpt | Free | Local | Your photos as guide planes for sculpting by hand |
+| 3 · 2.5D relief | Free | Local | A height-field slab from image brightness. Labelled as not 3D |
+| **4 · Free cloud 3D** | Free; a daily GPU allowance applies | TRELLIS (MIT) on a public Hugging Face Space. The image is uploaded after you consent | Full 3D including the back, from 1–4 views. A free Hugging Face token gives a larger allowance |
+| Advanced · your own server | Your choice | A bridge you run (`server/reconstruction-proxy.mjs` targets Meshy, which is **paid**; any self-hosted model can speak the same protocol) | Optional; not needed |
+
+Every result is a normal editable object, with provenance that states what was measured and what was inferred. Success is declared only after a real mesh is parsed and validated. Details: [docs/PROVIDERS.md](docs/PROVIDERS.md).
+
+## Keyboard and gestures
+
+| Key | Action | Key | Action |
+|---|---|---|---|
+| V / T / R | Select / transform / reference | B C N S G | Draw, Clay, Inflate, Smooth, Grab |
+| Shift+F, P, E, M | Flatten, Pinch, Crease, Mask | I / X | Invert brush / X symmetry |
+| `[` `]` | Radius | Shift+`[` `]` | Strength |
+| F | Frame | 1 / 3 / 7 / 0 / 5 | Front, right, top, iso, ortho toggle |
+| Ctrl/⌘+Z, Ctrl/⌘+Shift+Z | Undo / redo | Ctrl/⌘+S / E / K / D | Save project, export, commands, duplicate |
+| Shift+W, H, Shift+P | Wireframe, HUD, presentation | ? | All shortcuts |
+| W/E/R in transform tool | Move / rotate / scale | Space / Alt + drag | Orbit even over the mesh |
+
+**Mouse:** left-drag on the mesh sculpts. Left-drag on the background orbits, right-drag pans, and the wheel zooms.
+
+**Pen:** sculpts, with pressure when the device reports it.
+
+**Touch:** one finger on the mesh sculpts. Two fingers orbit, pan and zoom; if a stroke was in progress, it is rolled back.
+
+## On a tablet (Galaxy Tab S9 Ultra, iPad, any Android tablet)
+
+- **Install it as an app:** open https://westkitty.github.io/Form_Engine_CC/ in Chrome or Samsung Internet. Use the **Install** button (top bar), or Menu → *Install as an app*, or the browser menu → *Add to home screen*. It then launches from its icon **full screen**, in its own window, and works offline. On Android this is a real installed app (WebAPK). On iPad: Safari → Share → *Add to Home Screen*.
+- **S Pen:**
+  - pressure controls strength, with Soft / Natural / Firm feel in Brush settings;
+  - hold the **side button** to push in instead of out;
+  - hovering shows the brush ring;
+  - after the first pen stroke, **fingers only move the view** (palm rejection; can be switched off).
+- **Gestures:** one finger on the background turns the view; two fingers pan and zoom; **two-finger tap = undo**, **three-finger tap = redo**.
+- **Layout:** the tall **Size** and **Strength** sliders sit on the screen edge for your other hand. Menu → *Left-handed layout* swaps the sides.
+
+## Android app (APK) — install with ADB
+
+The `android/` folder is a small native wrapper app. It opens FORM//ENGINE full screen with system bars hidden. S Pen pressure and side-button input reach the app unchanged. It also gives the app the system file picker for imports and saves exports to **Downloads/FORM ENGINE**.
+
+**Download:** https://westkitty.github.io/Form_Engine_CC/android/form-engine.apk (package `io.github.westkitty.formengine`, Android 8+).
+
+From a Mac, with the tablet connected by USB:
+
+```bash
+brew install --cask android-platform-tools        # installs adb
+# On the tablet: Settings → About tablet → Software information → tap "Build number" 7 times,
+# then Settings → Developer options → turn on "USB debugging". Plug in and accept the prompt.
+adb devices                                        # the tablet should be listed as "device"
+curl -L -o form-engine.apk https://westkitty.github.io/Form_Engine_CC/android/form-engine.apk
+adb install -r form-engine.apk
+adb shell monkey -p io.github.westkitty.formengine -c android.intent.category.LAUNCHER 1   # launch it
+```
+
+Wireless instead of USB: Developer options → **Wireless debugging** → *Pair device with pairing code*, then `adb pair <ip>:<pair-port>` (enter the code) and `adb connect <ip>:<port>`.
+
+**Build it yourself:** `ANDROID_SDK_ROOT=… scripts/build-android.sh`. You need JDK 17+, `platforms;android-34` and `build-tools;35.0.0`. The signing key is created outside the repo and must be kept: Android only accepts updates signed with the same key.
+
+## Live
+
+- **Standalone app (GitHub Pages):** https://westkitty.github.io/Form_Engine_CC/. Served from the `gh-pages` branch.
+- **Claude Artifact (private):** the single-file build (`npm run build:artifact` → `dist-artifact/form-engine.html`). In the artifact, sculpting, import, references and relief work. On-device 3D, Export and Save are blocked by the artifact host, and the app says so and links to the standalone app.
+
+## Deploying
+
+To update the live site:
+
+```bash
+npx vite build --sourcemap false --outDir /tmp/pages && touch /tmp/pages/.nojekyll
+# commit the contents of /tmp/pages to the gh-pages branch (e.g. via `git worktree add ../ghp gh-pages`) and push
+```
+
+The `dist/` output is a static site with no secrets. The default `base` is relative (`./`), so it works on nested paths such as GitHub Pages project sites. For absolute URLs, set `BASE_PATH=/<repo>/` at build time.
+
+`.github/workflows/deploy-pages.yml` is an alternative Actions-based deploy and is **manual only** (`workflow_dispatch`). It applies once it is on `main` and Pages' source is switched to "GitHub Actions"; the current source is the `gh-pages` branch. `ci.yml` runs typecheck, tests and both builds on pull requests.
+
+**Supported browsers:** current Chrome/Edge, Firefox and Safari with WebGL 2. Without WebGL 2 the app shows an explanation instead of failing silently.
+
+## Architecture
+
+```
+src/geometry/    EditableMesh (welded seams, CSR adjacency, BVH, dirty normals, topology versions), primitives, subdivide/decimate
+src/sculpt/      brush math (pure), stroke transactions, symmetry, vertex patches
+src/history/     undo/redo stack with memory budget
+src/scene/       scene model, objects, provenance
+src/viewport/    renderer, cameras, controls, light rig, overlays, render-on-demand loop, context-loss handling
+src/io/          importers (sniffing, validation), exporters, mesh diagnostics/repair
+src/persistence/ .formengine read/write with migrations, IndexedDB two-slot store
+src/reconstruction/ provider contract, job state machine, bridge provider, relief, image intake
+src/app/         App controller (commands, autosave), pointer arbitration
+src/ui/          DOM shell, Image Lab, export/gallery/palette dialogs
+server/          reconstruction bridge (Meshy), zero dependencies
+tests/unit/      numeric geometry, IO/project round-trips, provider contract (real bridge + fixture upstream)
+tests/e2e/       Playwright journeys, artifact sandbox check
+```
+
+The geometry core is imperative and typed-array based. UI panels never hold mesh arrays, and the viewport renders only when something changed.
+
+## Known limitations
+
+See the ledger in [docs/VERIFICATION.md](docs/VERIFICATION.md#limitations). In short:
+
+- No dynamic topology, voxel remesh or booleans.
+- Heavy operations (decimate, import parsing) run on the main thread, not in Web Workers.
+- Free cloud 3D (TRELLIS Space) could not complete a job from the build container: its anonymous GPU allowance was used up. Meshy (paid) was never tested.
+- Performance was measured only on a software (SwiftShader) GPU.

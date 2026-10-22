@@ -1,0 +1,45 @@
+{
+  "top-level": {
+    "caps": {
+      "webgl2": true,
+      "pointerEvents": true,
+      "coalescedEvents": true,
+      "workers": true,
+      "indexedDB": true,
+      "opfs": true,
+      "downloadAttr": true,
+      "clipboard": true,
+      "createImageBitmap": true,
+      "embedded": false,
+      "storageQuota": "1038 MB",
+      "secureContext": true
+    },
+    "verts": 24012,
+    "maxDelta": 0.0562480092048645,
+    "afterUndo": 0,
+    "afterRedo": 0,
+    "save": "pending"
+  },
+  "sandboxed-iframe": {
+    "caps": {
+      "webgl2": true,
+      "pointerEvents": true,
+      "coalescedEvents": true,
+      "workers": true,
+      "indexedDB": false,
+      "opfs": false,
+      "downloadAttr": true,
+      "clipboard": true,
+      "createImageBitmap": true,
+      "embedded": true,
+      "storageQuota": "unknown",
+      "secureContext": true
+    },
+    "verts": 24012,
+    "maxDelta": 0.0562480092048645,
+    "afterUndo": 0,
+    "afterRedo": 0,
+    "save": "unavailable",
+    "pageErrors": []
+  }
+}
