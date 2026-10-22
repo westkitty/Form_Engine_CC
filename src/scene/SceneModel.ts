@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { EditableMesh } from '../geometry/EditableMesh';
 
 export interface Provenance {
-  source: 'primitive' | 'import' | 'reconstruction' | 'relief' | 'project';
+  source: 'primitive' | 'import' | 'reconstruction' | 'depth' | 'relief' | 'project';
   detail?: string;
   /** For reconstruction: provider id, job id, source image ids. Never secrets. */
   provider?: string;

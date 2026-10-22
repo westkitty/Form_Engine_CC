@@ -735,8 +735,11 @@ export class App {
     return this.addImported(res, provenance, `Adopt ${provenance.source === 'reconstruction' ? 'reconstruction' : 'generated'} ${fileName}`);
   }
 
-  addGeometryObject(geometry: THREE.BufferGeometry, name: string, provenance: Provenance) {
-    const obj = this.model.create(geometry, { name: this.uniqueName(name), provenance, material: makeClayMaterial(CLAY_COLOR) });
+  addGeometryObject(geometry: THREE.BufferGeometry, name: string, provenance: Provenance, material?: THREE.Material) {
+    const obj = this.model.create(geometry, {
+      name: this.uniqueName(name), provenance, material: material ?? makeClayMaterial(CLAY_COLOR),
+      materialParams: material ? { kind: 'imported', color: '#ffffff', roughness: 0.75, metalness: 0 } : undefined,
+    });
     this.addObjectCommand(obj, `Add ${name}`);
     this.viewport.syncOverlays();
     this.viewport.frame(obj);

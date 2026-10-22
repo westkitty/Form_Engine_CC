@@ -246,7 +246,7 @@ export class Shell {
         inp.addEventListener('blur', done);
       });
       const li = h('li', { class: `o-row ${app.model.selectedId === o.id ? 'sel' : ''}`, role: 'option', 'aria-selected': String(app.model.selectedId === o.id), tabindex: '0' },
-        h('span', { class: `o-kind k-${o.provenance.source}`, title: o.provenance.source }, o.provenance.source === 'reconstruction' ? 'AI' : o.provenance.source === 'relief' ? '2.5D' : o.provenance.source === 'import' ? 'IMP' : '◯'),
+        h('span', { class: `o-kind k-${o.provenance.source}`, title: o.provenance.source }, o.provenance.source === 'reconstruction' ? 'AI' : o.provenance.source === 'depth' ? 'DEP' : o.provenance.source === 'relief' ? '2.5D' : o.provenance.source === 'import' ? 'IMP' : '◯'),
         nameEl,
         h('span', { class: 'o-tris' }, shortNum(o.editable.triangleCount)),
         button(o.visible ? 'Hide' : 'Show', () => app.setVisible(o.id, !o.visible), { icon: o.visible ? ICON.eye : ICON.eyeOff, class: 'icon-only ghost tiny', title: `${o.visible ? 'Hide' : 'Show'} ${o.name}` }),

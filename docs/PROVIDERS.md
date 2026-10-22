@@ -1,12 +1,38 @@
 # Image → 3D providers
 
-FORM//ENGINE never fabricates a reconstruction. Image-to-mesh inference runs on a real service you configure, through a small **bridge** server you control. The static web app never contains provider API keys.
+FORM//ENGINE never fabricates a reconstruction. **The two main options are free.**
+
+## 1 · On-device 3D (free, private, default)
+
+- **Model:** Depth Anything V2 Small (`onnx-community/depth-anything-v2-small`, Apache-2.0, int8, ~27 MB). It runs in the browser with transformers.js and ONNX Runtime Web (WASM).
+- **Downloads:** the model and the runtime come once from huggingface.co and cdn.jsdelivr.net and are then cached. Nothing is uploaded. Verified in E2E J8: only GET requests were made.
+- **Geometry** (`src/reconstruction/depthMesh.ts`): the subject comes from the image's transparency, or from Otsu thresholding of the depth when the image is opaque. The front surface is the estimated depth with a rounded silhouette profile. The back is an inferred, flattened mirror (the "Back depth" slider). Side walls make it a closed, manifold, single-shell mesh. The photo can be projected as a texture.
+- **Honesty:** depth is relative and estimated from one view. The back and sides are not observed. Provenance says so.
+- **Speed:** about 13 s including inference on a 4-core container CPU (E2E J8). It is usually faster on a laptop.
+- **Not in the artifact:** the Claude Artifact sandbox cannot download the model, so use the standalone app.
+
+## 2 · Free cloud 3D — TRELLIS on Hugging Face
+
+- **Model:** TRELLIS (MIT), on the public Space `trellis-community/TRELLIS`. It runs on Hugging Face's free ZeroGPU hardware and is called straight from the browser with `@gradio/client`. No server or payment is involved.
+- **Output:** full 3D including the back, with 1 image or 2–4 views (the Space's multi-image mode).
+- **Limits:** Hugging Face gives each visitor a small free daily GPU allowance. A free account token (huggingface.co/settings/tokens, "Read") raises it. The token is held in the tab's memory only.
+- **Reliability:** the Space is community-run, so it can be busy, asleep or changed. Errors are shown as they arrive. A quota error explains what to do and suggests On-device 3D instead.
+- **Privacy:** images are uploaded to the Space only after the consent dialog.
+- **Verification status:**
+  - API verified on 2026-10-22: connect, session and preprocessing all succeeded from the build container.
+  - Generation was refused with "You have exceeded your ZeroGPU quota", because the container's anonymous allowance was used up.
+  - So a completed live job is **UNVERIFIED**. A free token on your machine should complete it.
+- **Other free Spaces:** Stable Fast 3D, TripoSG and Hunyuan3D-2 exist, but returned errors from the build container. They are not wired in.
+
+## Advanced · your own server (optional)
+
+Image-to-mesh inference can also run on a service you configure, through a small **bridge** server you control. The static web app never contains provider API keys. **Meshy is a paid service.** It is supported only for people who already have an account, and nothing in FORM//ENGINE requires it.
 
 ```
 Browser (FORM//ENGINE) ──FORM Bridge v1 (HTTP+JSON, CORS-restricted)──▶ bridge ──provider API + key──▶ Meshy / your model
 ```
 
-## Supported today
+### Bridge targets
 
 | Provider | Path | Status |
 |---|---|---|

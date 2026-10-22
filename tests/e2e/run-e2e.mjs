@@ -356,6 +356,7 @@ async function main() {
     await importFile(page, [png]);
     await page.waitForSelector('#image-lab');
     ev.noUploadBeforeConsent = requests.length === 0;
+    await page.click('#bridge-advanced > summary');
     await page.fill('#bridge-url', `http://127.0.0.1:${bridgePort}`);
     await page.click('#bridge-test');
     await page.waitForSelector('#provider-status.pill.on', { timeout: 10000 });
@@ -604,6 +605,58 @@ async function main() {
     await page.evaluate(() => { const p = window.__world.src; window.__world.mirror = p.map((v, i) => (i % 3 === 0 ? -v : v)); });
     ev.asymmetryHausdorffToMirror = await hausdorff(page, 'src', 'mirror');
     assert(ev.asymmetryHausdorffToMirror > 1e-2, 'test sculpture is asymmetric (differs from its X mirror)');
+    ev.pageErrors = page.__errors;
+    await ctx.close();
+  });
+
+
+  // ───────────── Journey 8: free on-device image → 3D ─────────────
+  await journey('J8 free on-device image → 3D (Depth Anything V2 in the browser) → sculpt → export', async (ev) => {
+    const photo = 'test-results/free3d/mushroom.png';
+    assert(existsSync(photo), 'test photo present (npm run fetch:samples)');
+    const { page, ctx } = await newPage();
+    await boot(page);
+    const external = [];
+    page.on('request', (r) => { const u = new URL(r.url()); if (u.origin !== new URL(BASE).origin && !u.protocol.startsWith('data') && !u.protocol.startsWith('blob')) external.push(`${r.method()} ${u.host}${u.pathname.slice(0, 80)}`); });
+    await importFile(page, [photo]);
+    await page.waitForSelector('#image-lab');
+    await page.click('#lab-ondevice');
+    const t0 = Date.now();
+    await page.waitForFunction(() => /Done in|Failed/.test(document.getElementById('od-status')?.textContent ?? ''), null, { timeout: 300000 });
+    ev.status = await page.textContent('#od-status');
+    ev.wallSeconds = (Date.now() - t0) / 1000;
+    assert(/Done in/.test(ev.status), `on-device reconstruction finished: ${ev.status}`);
+    ev.externalRequests = [...new Set(external)];
+    ev.uploads = external.filter((r) => r.startsWith('POST') || r.startsWith('PUT'));
+    assert(ev.uploads.length === 0, 'nothing was uploaded (only model/runtime downloads)');
+    const obj = await page.evaluate(() => { const a = window.__formengine.app; const o = a.selected; const r = a.meshReport(o); return { id: o.id, name: o.name, source: o.provenance.source, detail: o.provenance.detail, warning: o.provenance.inferredWarning, tris: r.triangles, watertight: r.watertight, shells: r.components, nonManifold: r.nonManifoldEdges, hasTexture: !!o.baseMaterial.map, size: r.bounds.size }; });
+    ev.mesh = obj;
+    assert(obj.source === 'depth' && obj.tris > 5000 && obj.watertight && obj.shells === 1, 'closed single-shell depth mesh added');
+    await page.keyboard.press('Escape');
+    await page.evaluate((id) => { const a = window.__formengine.app; for (const o of a.model.objects) a.setVisible(o.id, o.id === id); a.select(id); a.viewport.setView('iso'); a.viewport.frame(a.selected); }, obj.id);
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: `${OUT}/j8-1-ondevice-iso.png` });
+    await page.evaluate(() => { const a = window.__formengine.app; a.viewport.setView('front'); a.viewport.frame(a.selected); });
+    await page.waitForTimeout(200);
+    await page.screenshot({ path: `${OUT}/j8-2-ondevice-front.png` });
+    await snap(page, 'od0', obj.id);
+    await page.keyboard.press('b');
+    await page.evaluate(() => window.__formengine.app.updateSettings({ radius: 0.08, strength: 0.8 }));
+    await strokeAcrossCenter(page, 0.04, 0.03);
+    ev.sculpt = await delta(page, 'od0');
+    assert(ev.sculpt.maxDelta > 1e-3, 'depth mesh sculpted');
+    await page.click('#btn-export'); await page.waitForSelector('#export-dlg'); await page.check('#ex-scope-selected');
+    const glb = await saveDownload(page, () => page.click('#export-go'), 'j8-ondevice-edited.glb');
+    ev.exportedGLB = glb;
+    await worldSnap(page, 'odEdited', obj.id);
+    const w = await page.evaluate(() => window.__world.odEdited);
+    await page.evaluate(() => window.__formengine.app.newProject(false));
+    await importFile(page, [glb.path]);
+    await page.evaluate((x) => { window.__world.odEdited = x; }, w);
+    await worldSnap(page, 'odBack');
+    ev.reimportHausdorff = await hausdorff(page, 'odEdited', 'odBack');
+    ev.reimportedHasTexture = await page.evaluate(() => !!window.__formengine.app.selected.baseMaterial.map);
+    assert(ev.reimportHausdorff < 1e-4 && ev.reimportedHasTexture, 'edited textured depth mesh survives GLB export/re-import');
     ev.pageErrors = page.__errors;
     await ctx.close();
   });

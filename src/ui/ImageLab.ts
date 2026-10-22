@@ -7,7 +7,11 @@ import { loadImageFile, prepareCanvas, canvasToBlob, foregroundBox, ImageIntakeE
 import { reliefFromImage, DEFAULT_RELIEF, type ReliefOptions } from '../reconstruction/relief';
 import { BridgeProvider } from '../reconstruction/bridgeProvider';
 import { JobRunner, newJob, transition, TERMINAL, type JobRecord } from '../reconstruction/jobMachine';
-import type { ProviderCapabilities, SourceImage, ViewLabel } from '../reconstruction/types';
+import type { ProviderCapabilities, ReconstructionProvider, SourceImage, ViewLabel } from '../reconstruction/types';
+import { HfSpaceProvider, TRELLIS_SPACE } from '../reconstruction/hfSpaceProvider';
+import { buildDepthShell, DEFAULT_DEPTH_SHELL } from '../reconstruction/depthMesh';
+import { estimateDepth, alphaMask, ON_DEVICE_AVAILABLE, DEPTH_MODEL, DEPTH_MODEL_LICENSE, DEPTH_MODEL_SIZE_MB } from '../reconstruction/onDevice';
+import { STANDALONE_URL } from '../io/exporters';
 import { parseModel, type ImportResult } from '../io/importers';
 import { removeDebris, flipWinding } from '../io/validate';
 import { newId } from '../scene/SceneModel';
@@ -25,6 +29,9 @@ const lab = {
   jobs: new Map<string, { job: JobRecord; runner?: JobRunner; result?: ArrayBuffer; fileName?: string }>(),
   relief: { ...DEFAULT_RELIEF } as ReliefOptions,
   remoteSent: false,
+  providerNames: new Map<string, string>(),
+  od: { mask: 'auto' as 'auto' | 'depth' | 'full', opts: { ...DEFAULT_DEPTH_SHELL }, texture: true, busy: false, status: '' as string, pct: undefined as number | undefined },
+  hf: { token: '', status: '', ok: false, caps: null as ProviderCapabilities | null },
 };
 let refresh: (() => void) | null = null;
 
@@ -124,7 +131,7 @@ function renderModes(app: App, el: HTMLElement) {
 
   // Mode 1
   const mode1 = h('div', { class: 'mode' },
-    h('h3', null, '1 · Reference sculpt ', h('span', { class: 'tag' }, 'offline')),
+    h('h3', null, '2 · Reference sculpt ', h('span', { class: 'tag' }, 'offline')),
     h('p', { class: 'hint' }, 'Places each image as a guide plane behind the model (matching its view). Guides are never exported and nothing is generated — you sculpt the form yourself.'),
     button('Place as reference planes', async () => {
       for (const li of lab.images) { const s = await prepared(li, 2048); await app.addReference(s.blob, { name: li.name, view: li.view === 'other' ? 'front' : li.view }); }
@@ -139,7 +146,7 @@ function renderModes(app: App, el: HTMLElement) {
   const inv = h('input', { type: 'checkbox', checked: lab.relief.invert, id: 'relief-inv' });
   inv.addEventListener('change', () => { lab.relief.invert = inv.checked; });
   const mode5 = h('div', { class: 'mode' },
-    h('h3', null, '2 · 2.5D relief ', h('span', { class: 'tag warn' }, 'not 3D reconstruction')),
+    h('h3', null, '3 · 2.5D relief ', h('span', { class: 'tag warn' }, 'not 3D reconstruction')),
     h('p', { class: 'hint' }, 'Builds a closed relief slab from the first image (brightness → height). Real, editable geometry, but only a height field — there is no inferred back or side.'),
     h('div', { class: 'field two' }, h('label', null, 'Height from'), src),
     h('div', { class: 'field two' }, h('label', null, 'Depth'), depth),
@@ -151,6 +158,59 @@ function renderModes(app: App, el: HTMLElement) {
       app.addGeometryObject(g, `Relief ${li.name.replace(/\.[^.]+$/, '')}`, { source: 'relief', detail: `2.5D relief from ${li.name} (${lab.relief.source})`, sourceImages: [li.id], createdAt: new Date().toISOString(), inferredWarning: 'Height-field relief derived from image brightness/alpha. Not a 3D reconstruction.' });
       app.toast('ok', 'Relief mesh added. It is labelled 2.5D relief in Provenance.');
     }, { class: 'small', disabled: !has, id: 'lab-relief' }));
+  // On-device depth reconstruction (free, private)
+  const sub = h('select', { 'aria-label': 'Subject outline', id: 'od-mask' },
+    h('option', { value: 'auto', selected: lab.od.mask === 'auto' }, 'Auto (transparency, else depth)'),
+    h('option', { value: 'depth', selected: lab.od.mask === 'depth' }, 'Separate by depth'),
+    h('option', { value: 'full', selected: lab.od.mask === 'full' }, 'Whole image'));
+  sub.addEventListener('change', () => { lab.od.mask = sub.value as typeof lab.od.mask; });
+  const rng = (id: string, label: string, min: number, max: number, step: number, get: () => number, set: (v: number) => void) => {
+    const r = h('input', { type: 'range', id, min: String(min), max: String(max), step: String(step), value: String(get()), 'aria-label': label });
+    r.addEventListener('change', () => set(+r.value));
+    return h('div', { class: 'field two' }, h('label', { for: id }, label), r);
+  };
+  const texChk = h('input', { type: 'checkbox', id: 'od-tex', checked: lab.od.texture });
+  texChk.addEventListener('change', () => { lab.od.texture = texChk.checked; });
+  const odStatus = h('div', { class: 'od-status', id: 'od-status', role: 'status' }, lab.od.status ? [lab.od.status, typeof lab.od.pct === 'number' ? h('progress', { max: '100', value: String(lab.od.pct) }) : lab.od.busy ? h('progress') : null] : null);
+  const modeOD = h('div', { class: 'mode primary' },
+    h('h3', null, '1 · On-device 3D ', h('span', { class: 'tag ok' }, 'free · private · no account')),
+    h('p', { class: 'hint' }, `Estimates depth from the first image with ${'Depth Anything V2'} (${DEPTH_MODEL_LICENSE}) running in this browser, then builds a closed, sculptable mesh. The front comes from the estimated depth; the back and sides are inferred. Nothing is uploaded. The first run downloads the model (about ${DEPTH_MODEL_SIZE_MB} MB) once; after that it is cached.`),
+    ON_DEVICE_AVAILABLE ? [
+      h('div', { class: 'field two' }, h('label', { for: 'od-mask' }, 'Subject'), sub),
+      rng('od-depth', 'Depth', 0.05, 0.8, 0.05, () => lab.od.opts.depthStrength, (v) => { lab.od.opts.depthStrength = v; }),
+      rng('od-back', 'Back depth', 0, 1, 0.05, () => lab.od.opts.backRatio, (v) => { lab.od.opts.backRatio = v; }),
+      rng('od-res', 'Detail', 64, 256, 16, () => lab.od.opts.resolution, (v) => { lab.od.opts.resolution = v; }),
+      h('label', { class: 'chk', for: 'od-tex' }, texChk, 'Paint the photo onto the front'),
+      button('Build 3D on this device', () => void runOnDevice(app), { class: 'small accent', disabled: !has || lab.od.busy, id: 'lab-ondevice' }),
+      odStatus,
+    ] : h('p', { class: 'hint warn' }, `This embedded preview cannot download the model. Use the standalone app: ${STANDALONE_URL}`),
+  );
+  // Free cloud: TRELLIS Space on Hugging Face
+  const hfTok = h('input', { type: 'password', value: lab.hf.token, placeholder: 'optional free token: hf_…', 'aria-label': 'Hugging Face token', autocomplete: 'off', id: 'hf-token' });
+  const hfMulti = lab.images.length > 1;
+  const hfMode = h('select', { 'aria-label': 'Free cloud mode', id: 'hf-mode' },
+    h('option', { value: 'single' }, 'Single image (first image)'),
+    h('option', { value: 'multi', disabled: !hfMulti, selected: hfMulti }, `Multi-view (${Math.min(4, lab.images.length)} images)`));
+  const modeHF = h('div', { class: 'mode' },
+    h('h3', null, '4 · Free cloud 3D ', h('span', { class: 'tag' }, 'free · uploads image')),
+    h('p', { class: 'hint' }, 'Full 3D (including the back) from TRELLIS, an open model running on a public Hugging Face Space. Free; Hugging Face limits how much GPU time each visitor gets per day. A free Hugging Face account token (huggingface.co/settings/tokens, "Read") gives a larger allowance. The token stays in this tab only. The Space is community-run and may be busy or asleep.'),
+    h('div', { class: 'field two' }, h('label', { for: 'hf-token' }, 'HF token'), hfTok),
+    lab.hf.status ? h('p', { class: `pill ${lab.hf.ok ? 'on' : 'warn'}`, id: 'hf-status' }, lab.hf.status) : null,
+    h('div', { class: 'field two' }, h('label', { for: 'hf-mode' }, 'Mode'), hfMode),
+    h('div', { class: 'btn-row' },
+      button('Check Space', async () => {
+        lab.hf.token = hfTok.value.trim(); lab.hf.status = 'Checking…'; lab.hf.ok = false; refresh?.();
+        try { lab.hf.caps = await new HfSpaceProvider(lab.hf.token || null).capabilities(); lab.hf.status = 'Space reachable.'; lab.hf.ok = true; }
+        catch (e) { lab.hf.status = (e as Error).message; }
+        refresh?.();
+      }, { class: 'small', id: 'hf-check' }),
+      button('Review & submit…', async () => {
+        lab.hf.token = hfTok.value.trim();
+        const pr = new HfSpaceProvider(lab.hf.token || null);
+        const caps = lab.hf.caps ?? { provider: 'TRELLIS (Hugging Face Space)', modes: ['single', 'multi'], maxImages: 4, progress: 'discrete', cancel: 'any', outputFormats: ['glb'] } as ProviderCapabilities;
+        void consentFlow(app, pr, caps, `Hugging Face Space ${TRELLIS_SPACE}`, hfMode.value as 'single' | 'multi', {});
+      }, { class: 'small accent', disabled: !has, id: 'hf-submit' })),
+  );
   // Mode 2/3
   const urlIn = h('input', { type: 'url', value: lab.bridgeUrl, placeholder: 'http://127.0.0.1:8787', 'aria-label': 'Bridge URL', id: 'bridge-url', spellcheck: 'false' });
   const tokIn = h('input', { type: 'password', value: lab.token, placeholder: 'optional bridge token (kept in memory only)', 'aria-label': 'Bridge token', autocomplete: 'off' });
@@ -174,8 +234,9 @@ function renderModes(app: App, el: HTMLElement) {
     h('option', { value: 'single' }, 'Single image → mesh (first image)'),
     h('option', { value: 'multi', disabled: !multiOk, selected: multiOk }, `Multi-view → mesh (${Math.min(lab.images.length, lab.caps?.maxImages ?? 4)} images)`));
   const tex = h('input', { type: 'checkbox', checked: true, id: 'opt-tex' });
-  const mode2 = h('div', { class: 'mode' },
-    h('h3', null, '3 · Image → 3D reconstruction ', h('span', { class: 'tag' }, 'provider')),
+  const mode2 = h('details', { class: 'mode advanced', id: 'bridge-advanced', open: !!lab.bridgeUrl },
+    h('summary', null, h('h3', null, 'Advanced · your own reconstruction server ', h('span', { class: 'tag' }, 'self-hosted or paid'))),
+    h('p', { class: 'hint' }, 'For a model you run yourself (any server speaking the FORM bridge protocol) or a paid service such as Meshy. Not needed for the free options above.'),
     status,
     h('details', { class: 'connect', open: !connected },
       h('summary', null, connected ? 'Connection settings' : 'Connect Reconstruction'),
@@ -187,29 +248,28 @@ function renderModes(app: App, el: HTMLElement) {
       h('div', { class: 'field two' }, h('label', { for: 'recon-mode' }, 'Mode'), modeSel),
       h('label', { class: 'chk', for: 'opt-tex' }, tex, 'Request textured output'),
       h('p', { class: 'hint' }, lab.caps!.progress === 'percent' ? 'This provider reports real progress percentages.' : 'This provider only reports states; progress is shown as indeterminate.'),
-      button('Review & submit…', () => void consentFlow(app, modeSel.value as 'single' | 'multi', { should_texture: tex.checked }), { class: 'small accent', disabled: !has, id: 'recon-submit' }),
-    ) : h('p', { class: 'hint' }, 'Without a connected provider you can still use Reference sculpt and 2.5D relief, and keep sculpting normally. No fake reconstruction is offered.'),
+      button('Review & submit…', () => { const pr = provider(); if (pr && lab.caps) void consentFlow(app, pr, lab.caps, `bridge ${lab.bridgeUrl}`, modeSel.value as 'single' | 'multi', { should_texture: tex.checked }); }, { class: 'small accent', disabled: !has, id: 'recon-submit' }),
+    ) : h('p', { class: 'hint' }, 'No server connected. Everything else in the Image Lab works without one.'),
   );
-  replace(el, mode1, mode5, mode2, renderJobs(app));
+  replace(el, modeOD, mode1, mode5, modeHF, mode2, renderJobs(app));
 }
 
-async function consentFlow(app: App, mode: 'single' | 'multi', options: Record<string, unknown>) {
-  const pr = provider();
-  if (!pr || !lab.caps) return;
-  const chosen = mode === 'single' ? lab.images.slice(0, 1) : lab.images.slice(0, lab.caps.maxImages);
+async function consentFlow(app: App, pr: ReconstructionProvider, caps: ProviderCapabilities, via: string, mode: 'single' | 'multi', options: Record<string, unknown>) {
+  const chosen = mode === 'single' ? lab.images.slice(0, 1) : lab.images.slice(0, caps.maxImages);
+  const free = pr instanceof HfSpaceProvider;
   const est = await pr.estimate([], mode);
   const sources = await Promise.all(chosen.map((li) => prepared(li)));
   const total = sources.reduce((s, x) => s + x.blob.size, 0);
   const c = dialog('Confirm upload to reconstruction provider', { id: 'consent' });
   const agree = h('input', { type: 'checkbox', id: 'consent-ok' });
-  const consentText = `I consent to sending ${sources.length} image(s) to ${lab.caps.provider} via ${lab.bridgeUrl} for ${mode === 'multi' ? 'multi-view' : 'single-image'} 3D reconstruction. This may consume paid credits.`;
+  const consentText = `I consent to sending ${sources.length} image(s) to ${caps.provider} (${via}) for ${mode === 'multi' ? 'multi-view' : 'single-image'} 3D reconstruction.${free ? ' This is free.' : ' This may consume paid credits.'}`;
   c.body.append(
     h('dl', { class: 'stats' },
-      h('dt', null, 'Provider'), h('dd', null, `${lab.caps.provider} (through bridge ${lab.bridgeUrl})`),
+      h('dt', null, 'Provider'), h('dd', null, `${caps.provider} (${via})`),
       h('dt', null, 'Mode'), h('dd', null, mode === 'multi' ? `Multi-view, ${sources.length} separate images (views: ${sources.map((s) => s.view).join(', ')})` : 'Single image'),
       h('dt', null, 'Data sent'), h('dd', null, `${sources.length} image(s), ${(total / 1e6).toFixed(2)} MB total, cropped/rotated as shown, ≤ 2048 px. No project data, meshes or names are sent.`),
-      h('dt', null, 'Cost'), h('dd', null, lab.caps.pricingNote ?? est.costNote),
-      h('dt', null, 'Retention'), h('dd', null, lab.caps.retentionNote ?? 'Provider terms apply; FORM//ENGINE cannot delete copies held by the provider.'),
+      h('dt', null, 'Cost'), h('dd', null, caps.pricingNote ?? est.costNote),
+      h('dt', null, 'Retention'), h('dd', null, caps.retentionNote ?? 'Provider terms apply; FORM//ENGINE cannot delete copies held by the provider.'),
     ),
     h('div', { class: 'consent-thumbs' }, ...chosen.map((li) => h('img', { src: li.thumb, alt: li.name }))),
     h('p', { class: 'hint warn' }, 'Unseen back and side surfaces will be inferred by the model, not measured. Review the result from every angle.'),
@@ -218,14 +278,14 @@ async function consentFlow(app: App, mode: 'single' | 'multi', options: Record<s
   const submit = button('Submit job', async () => {
     if (!agree.checked) return;
     c.close();
-    await startJob(app, mode, sources, options, consentText);
+    await startJob(app, pr, caps.provider, mode, sources, options, consentText);
   }, { class: 'accent', disabled: true, id: 'consent-submit' });
   agree.addEventListener('change', () => { (submit as HTMLButtonElement).disabled = !agree.checked; });
   c.foot.append(button('Cancel', () => c.close(), { class: 'ghost' }), submit);
 }
 
-async function startJob(app: App, mode: 'single' | 'multi', sources: SourceImage[], options: Record<string, unknown>, consentText: string) {
-  const pr = provider()!;
+async function startJob(app: App, pr: ReconstructionProvider, providerName: string, mode: 'single' | 'multi', sources: SourceImage[], options: Record<string, unknown>, consentText: string) {
+  lab.providerNames.set(pr.id, providerName);
   let job = newJob(newId('job'), pr.id, mode, sources);
   job = transition(transition(transition(job, 'validating'), 'ready'), 'awaiting-consent');
   const entry: { job: JobRecord; runner?: JobRunner; result?: ArrayBuffer; fileName?: string } = { job };
@@ -369,9 +429,50 @@ async function openReview(app: App, data: ArrayBuffer, fileName: string, job: Jo
       if (+rot.value) m.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), THREE.MathUtils.degToRad(+rot.value)));
     }
     if (norm.checked) normalizeImported(chosen);
-    app.addImported(chosen, { source: 'reconstruction', provider: lab.caps?.provider ?? job.providerId, jobId: job.remoteId, sourceImages: job.sourceImageIds, inferredWarning: 'Provider-generated from 2D image(s): unseen surfaces were inferred, not measured.', detail: `${job.mode}-view reconstruction` }, 'Adopt reconstruction');
+    app.addImported(chosen, { source: 'reconstruction', provider: lab.providerNames.get(job.providerId) ?? job.providerId, jobId: job.remoteId, sourceImages: job.sourceImageIds, inferredWarning: 'Provider-generated from 2D image(s): unseen surfaces were inferred, not measured.', detail: `${job.mode}-view reconstruction` }, 'Adopt reconstruction');
     app.setTool('sculpt');
     r.close();
     document.getElementById('image-lab')?.querySelector<HTMLButtonElement>('.dlg-head button')?.click();
   }, { class: 'accent', id: 'adopt-btn' }));
+}
+
+/** On-device: depth model in this browser → depth shell → new editable, textured object. */
+async function runOnDevice(app: App) {
+  const li = lab.images[0];
+  if (!li || lab.od.busy) return;
+  lab.od.busy = true; lab.od.status = 'Preparing image…'; lab.od.pct = undefined; refresh?.();
+  const setStatus = (t: string, pct?: number) => { lab.od.status = t; lab.od.pct = pct; const el = document.getElementById('od-status'); if (el) { replace(el, t, typeof pct === 'number' ? h('progress', { max: '100', value: String(pct) }) : h('progress')); } };
+  try {
+    const canvas = prepareCanvas(li.img, li.crop, li.rotation, 1024);
+    const t0 = performance.now();
+    const depth = await estimateDepth(canvas, (p) => {
+      if (p.phase === 'loading-library') setStatus('Loading the depth engine…');
+      else if (p.phase === 'downloading') setStatus(p.total ? `Downloading the model (first time only): ${(p.loaded! / 1e6).toFixed(1)} / ${(p.total / 1e6).toFixed(1)} MB` : 'Downloading the model…', p.total ? Math.round((p.loaded! / p.total) * 100) : undefined);
+      else if (p.phase === 'running') setStatus('Estimating depth on this device…');
+    });
+    const inferMs = performance.now() - t0;
+    setStatus('Building the mesh…');
+    const mask = lab.od.mask === 'full' ? { data: new Float32Array([1]), width: 1, height: 1 } : lab.od.mask === 'auto' ? alphaMask(canvas) : null;
+    const res = buildDepthShell({ depth, mask, aspect: canvas.width / canvas.height }, lab.od.opts);
+    let material: THREE.Material | undefined;
+    if (lab.od.texture) {
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      material = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.75, metalness: 0, name: 'Photo projection' });
+    }
+    const outline = lab.od.mask === 'full' ? 'whole image' : res.maskSource === 'alpha' ? 'image transparency' : res.maskSource === 'depth-threshold' ? 'depth separation' : 'whole image (no clear subject found)';
+    app.addGeometryObject(res.geometry, `Depth 3D ${li.name.replace(/\.[^.]+$/, '')}`, {
+      source: 'depth', detail: `On-device ${DEPTH_MODEL} (${DEPTH_MODEL_LICENSE}); subject from ${outline}; ${res.grid.nx}×${res.grid.ny} grid`,
+      sourceImages: [li.id], createdAt: new Date().toISOString(),
+      inferredWarning: 'Front surface from an estimated (relative) depth map, not a measurement. Back and sides are inferred. Sculpt to refine.',
+    }, material);
+    setStatus(`Done in ${((performance.now() - t0) / 1000).toFixed(1)} s (depth ${(inferMs / 1000).toFixed(1)} s). Subject from ${outline}.`);
+    app.toast('ok', 'On-device 3D added as a new object. It is editable like any other mesh.');
+  } catch (e) {
+    setStatus(`Failed: ${(e as Error)?.message ?? e}`);
+    app.toast('error', `On-device 3D failed: ${(e as Error)?.message ?? e}`, ['The model download needs an internet connection the first time.', 'Your scene was not changed.']);
+  } finally {
+    lab.od.busy = false;
+    refresh?.();
+  }
 }

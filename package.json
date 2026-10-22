@@ -13,9 +13,11 @@
     "test:e2e": "node tests/e2e/run-e2e.mjs",
     "proxy": "node server/reconstruction-proxy.mjs",
     "test:artifact": "vite build --mode artifact && node tests/e2e/artifact-check.mjs",
-    "fetch:samples": "mkdir -p test-results/external && curl -sSL -o test-results/external/Duck.glb https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Duck/glTF-Binary/Duck.glb && curl -sSL -o test-results/external/BoxTextured.glb https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/BoxTextured/glTF-Binary/BoxTextured.glb"
+    "fetch:samples": "mkdir -p test-results/external && curl -sSL -o test-results/external/Duck.glb https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Duck/glTF-Binary/Duck.glb && curl -sSL -o test-results/external/BoxTextured.glb https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/BoxTextured/glTF-Binary/BoxTextured.glb && mkdir -p test-results/free3d && curl -sSL -o test-results/free3d/mushroom.png https://huggingface.co/spaces/trellis-community/TRELLIS/resolve/main/assets/example_image/typical_building_mushroom.png"
   },
   "dependencies": {
+    "@gradio/client": "^2.7.1",
+    "@huggingface/transformers": "^4.3.1",
     "fflate": "^0.8.3",
     "three": "^0.186.1",
     "three-mesh-bvh": "^0.9.16"

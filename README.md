@@ -7,14 +7,14 @@ A browser-native 3D sculpting workbench. You can:
 - turn images into editable geometry through an honest, clearly labelled pipeline;
 - export GLB/OBJ/STL files that contain your edits.
 
-Everything except provider-backed image→3D reconstruction runs locally in the browser. There is no account, backend, telemetry or paid service.
+Everything runs locally in the browser, including image→3D (on-device depth model). There is no account, backend, telemetry or paid service. An optional free cloud model gives fuller 3D.
 
 > Status: see [docs/VERIFICATION.md](docs/VERIFICATION.md) for what is proven, with test evidence, and what is not yet verified.
 
 ## Quick start
 
 ```bash
-npm ci
+npm ci --ignore-scripts   # skips a Node-only ONNX binary download the browser app never uses
 npm run dev            # http://localhost:5173 (temporary dev server)
 npm run build          # typecheck + production build → dist/
 npm run preview        # serve dist/ at http://localhost:4173
@@ -42,16 +42,21 @@ Node ≥ 20. The browser tests use Playwright's Chromium. If a project pins a di
 | Import | GLB, glTF (+ .bin/textures dropped together), OBJ (+ MTL/textures), STL, PLY. Content sniffing, size/complexity limits, validation before anything touches the scene |
 | Export | GLB (binary glTF, materials/textures, node transforms or baked), OBJ (geometry/normals/UVs), STL (binary/ASCII, unit conversion, printability warnings) |
 | Projects | `.formengine` portable ZIP project ([schema](docs/PROJECT_FORMAT.md)); IndexedDB autosave with two checksummed slots; corruption fallback; local gallery |
-| Image Lab | PNG/JPEG/WebP intake (EXIF orientation, size limits), crop/rotate/fit-to-subject, view labels, **Reference sculpt** (guide planes), **2.5D relief** (labelled, not 3D), **provider reconstruction** through a FORM bridge with consent, job state machine and review/adopt |
+| Image Lab | PNG/JPEG/WebP intake (EXIF orientation, size limits), crop/rotate/fit-to-subject, view labels. **Free on-device 3D** (depth model in the browser). Reference sculpt, 2.5D relief. **Free cloud 3D** (TRELLIS on Hugging Face) with consent, job states and review/adopt. Optional self-hosted bridge |
 | Devices | Mouse, pen (pressure), touch (one finger sculpts, two fingers navigate and cancel any stroke), pen-only mode, tablet and phone layouts, high-contrast mode, reduced motion, keyboard access |
 | Offline | PWA service worker caches the editor shell and assets (HTTPS only). Reconstruction always needs the network |
 
-## Image → 3D: what is real
+## Image → 3D (all free options first)
 
-- **Reference sculpt** and **2.5D relief** run locally. Relief objects are labelled "2.5D relief — not a 3D reconstruction" in their provenance.
-- **Provider reconstruction** uses a real image-to-mesh service through a bridge you run. The bridge for Meshy is `server/reconstruction-proxy.mjs`; a local private inference server can speak the same protocol. Success is declared only after a mesh has been downloaded, parsed and validated. The adopted mesh becomes an ordinary editable object.
-- No provider is configured by default. The Image Lab then says **"Provider not connected"**, and nothing fake is offered.
-- Setup, security model, consent and costs: [docs/PROVIDERS.md](docs/PROVIDERS.md).
+| Option | Cost | Where it runs | What you get |
+|---|---|---|---|
+| **1 · On-device 3D** (default) | Free, no account | In your browser. The image never leaves your device | Depth Anything V2 (Apache-2.0) estimates depth, then FORM//ENGINE builds a closed, watertight, textured mesh: the front comes from the estimated depth, the back and sides are inferred. The model (~27 MB) downloads once and is cached |
+| 2 · Reference sculpt | Free | Local | Your photos as guide planes for sculpting by hand |
+| 3 · 2.5D relief | Free | Local | A height-field slab from image brightness. Labelled as not 3D |
+| **4 · Free cloud 3D** | Free; a daily GPU allowance applies | TRELLIS (MIT) on a public Hugging Face Space. The image is uploaded after you consent | Full 3D including the back, from 1–4 views. A free Hugging Face token gives a larger allowance |
+| Advanced · your own server | Your choice | A bridge you run (`server/reconstruction-proxy.mjs` targets Meshy, which is **paid**; any self-hosted model can speak the same protocol) | Optional; not needed |
+
+Every result is a normal editable object, with provenance that states what was measured and what was inferred. Success is declared only after a real mesh is parsed and validated. Details: [docs/PROVIDERS.md](docs/PROVIDERS.md).
 
 ## Keyboard and gestures
 
@@ -74,7 +79,7 @@ Node ≥ 20. The browser tests use Playwright's Chromium. If a project pins a di
 ## Live
 
 - **Standalone app (GitHub Pages):** https://westkitty.github.io/Form_Engine_CC/. Served from the `gh-pages` branch.
-- **Claude Artifact (private):** the single-file build (`npm run build:artifact` → `dist-artifact/form-engine.html`). In the artifact, sculpting, import, the Image Lab, references and relief all work. Export and Save are blocked by the artifact host, and the app says so and links to the standalone app.
+- **Claude Artifact (private):** the single-file build (`npm run build:artifact` → `dist-artifact/form-engine.html`). In the artifact, sculpting, import, references and relief work. On-device 3D, Export and Save are blocked by the artifact host, and the app says so and links to the standalone app.
 
 ## Deploying
 
@@ -117,5 +122,5 @@ See the ledger in [docs/VERIFICATION.md](docs/VERIFICATION.md#limitations). In s
 
 - No dynamic topology, voxel remesh or booleans.
 - Heavy operations (decimate, import parsing) run on the main thread, not in Web Workers.
-- Live Meshy reconstruction has not been verified (no credentials in the build environment).
+- Free cloud 3D (TRELLIS Space) could not complete a job from the build container: its anonymous GPU allowance was used up. Meshy (paid) was never tested.
 - Performance was measured only on a software (SwiftShader) GPU.

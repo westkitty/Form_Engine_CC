@@ -23,6 +23,8 @@ Status values: PASS (with evidence) · UNVERIFIED (reason) · BLOCKED (reason) �
 | 17 | Responsive layout + a11y basics | PASS (emulated viewports) | vqa screenshots |
 | 18 | Single-file artifact build + private publish | PASS | https://claude.ai/artifact/3ikLExJA5y3vD8HHRfFj3k |
 | 19 | README, provider guide, format matrix, schema | PASS | README.md, docs/ |
-| 20 | Live image-to-3D (Meshy) | UNVERIFIED | needs MESHY_API_KEY |
+| 20 | Free on-device image→3D | PASS | E2E J8, depthMesh.test.ts |
+| 20b | Free cloud 3D (TRELLIS Space) | UNVERIFIED | anonymous GPU quota exhausted from build env; API verified |
+| 20c | Meshy (paid, optional) | UNVERIFIED | not needed |
 | 21 | Real-GPU performance, real tablets, Safari/Firefox | UNVERIFIED | no hardware/browsers in build env |
 | 22 | Public deployment | PASS | https://westkitty.github.io/Form_Engine_CC/ (gh-pages) |
