@@ -30,6 +30,7 @@ const lab = {
   relief: { ...DEFAULT_RELIEF } as ReliefOptions,
   remoteSent: false,
   providerNames: new Map<string, string>(),
+  moreOpen: false,
   od: { mask: 'auto' as 'auto' | 'depth' | 'full', opts: { ...DEFAULT_DEPTH_SHELL }, texture: true, busy: false, status: '' as string, pct: undefined as number | undefined },
   hf: { token: '', status: '', ok: false, caps: null as ProviderCapabilities | null },
 };
@@ -65,7 +66,7 @@ async function prepared(li: LabImage, maxSide = 2048): Promise<SourceImage> {
 export function openImageLab(app: App) {
   if (document.getElementById('image-lab')) { refresh?.(); return; }
   void loadBridgeUrl().then(() => refresh?.());
-  const d = dialog('Image Lab — image to editable geometry', { wide: true, id: 'image-lab', onClose: () => { refresh = null; } });
+  const d = dialog('Photo to 3D', { wide: true, id: 'image-lab', onClose: () => { refresh = null; } });
   const left = h('section', { class: 'lab-col', 'aria-label': 'Source images' });
   const right = h('section', { class: 'lab-col', 'aria-label': 'Modes' });
   const banner = h('div', { class: 'lab-banner', role: 'status' });
@@ -76,8 +77,8 @@ export function openImageLab(app: App) {
 
   refresh = () => {
     replace(banner, lab.remoteSent
-      ? h('span', { class: 'remote' }, '● REMOTE — at least one image in this session was sent to a reconstruction provider with your consent.')
-      : h('span', { class: 'local' }, '● LOCAL — images stay on this device. Nothing is uploaded unless you start a provider job and confirm consent.'));
+      ? h('span', { class: 'remote' }, '● A photo from this session was uploaded to a cloud service, with your consent.')
+      : h('span', { class: 'local' }, '● Your photos stay on this device unless you choose a cloud option and confirm.'));
     renderSources(app, left, fileIn);
     renderModes(app, right);
   };
@@ -109,18 +110,17 @@ function renderSources(app: App, el: HTMLElement, fileIn: HTMLInputElement) {
           button('Rotate 90°', () => { li.rotation = ((li.rotation + 90) % 360) as LabImage['rotation']; updateThumb(li); refresh?.(); }, { class: 'tiny ghost' }),
           button('Fit subject', () => { const c = prepareCanvas(li.img, { x: 0, y: 0, w: 1, h: 1 }, 0, 512); const fb = foregroundBox(c); const pad = 0.03; li.crop = { x: Math.max(0, fb.x - pad), y: Math.max(0, fb.y - pad), w: Math.min(1, fb.w + pad * 2), h: Math.min(1, fb.h + pad * 2) }; updateThumb(li); refresh?.(); }, { class: 'tiny ghost', title: 'Crop to the detected foreground (alpha or border-colour difference)' }),
           button('Remove', () => { lab.images.splice(idx, 1); li.img.bitmap.close(); refresh?.(); }, { icon: ICON.trash, class: 'icon-only ghost tiny' })),
-        h('div', { class: 'crop' }, inset('l', 'L'), inset('t', 'T'), inset('r', 'R'), inset('b', 'B')),
+        h('details', null, h('summary', { class: 'hint' }, 'Trim edges'), h('div', { class: 'crop' }, inset('l', 'Left'), inset('t', 'Top'), inset('r', 'Right'), inset('b', 'Bottom'))),
       ));
   });
   const views = new Set(lab.images.map((i) => i.view));
   const missing = (['front', 'right', 'back', 'left'] as ViewLabel[]).filter((v) => !views.has(v));
   replace(el,
-    h('h3', null, 'Sources'),
+    h('h3', null, 'Photos'),
     ...rows,
-    lab.images.length ? null : h('p', { class: 'hint' }, 'Add one photo or illustration (PNG, JPEG, WebP). For multi-view reconstruction add front / side / back shots of the same object.'),
-    h('div', { class: 'btn-row' }, button('Add images…', () => fileIn.click(), { icon: ICON.plus, class: 'small', id: 'lab-add' })),
-    lab.images.length ? h('p', { class: 'hint' }, missing.length ? `Missing views: ${missing.join(', ')} — hidden surfaces will be guessed by any reconstruction.` : 'Front, right, back and left views present.') : null,
-    h('p', { class: 'hint' }, `Limits: ${40} MB per file, 50 MP; images are downscaled to ≤ 2048 px before any upload. Background removal is not built in — use images with a transparent or plain background for best results.`),
+    lab.images.length ? null : h('p', { class: 'hint' }, 'Add a photo or drawing of one object. A plain or transparent background works best.'),
+    h('div', { class: 'btn-row' }, button(lab.images.length ? 'Add another view' : 'Choose photo…', () => fileIn.click(), { icon: ICON.plus, class: lab.images.length ? 'small' : 'accent', id: 'lab-add' })),
+    lab.images.length > 1 ? h('p', { class: 'hint' }, missing.length ? `Views missing: ${missing.join(', ')}.` : 'Front, right, back and left views present.') : null,
   );
 }
 
@@ -131,7 +131,7 @@ function renderModes(app: App, el: HTMLElement) {
 
   // Mode 1
   const mode1 = h('div', { class: 'mode' },
-    h('h3', null, '2 · Reference sculpt ', h('span', { class: 'tag' }, 'offline')),
+    h('h3', null, 'Trace it yourself ', h('span', { class: 'tag' }, 'reference planes')),
     h('p', { class: 'hint' }, 'Places each image as a guide plane behind the model (matching its view). Guides are never exported and nothing is generated — you sculpt the form yourself.'),
     button('Place as reference planes', async () => {
       for (const li of lab.images) { const s = await prepared(li, 2048); await app.addReference(s.blob, { name: li.name, view: li.view === 'other' ? 'front' : li.view }); }
@@ -146,7 +146,7 @@ function renderModes(app: App, el: HTMLElement) {
   const inv = h('input', { type: 'checkbox', checked: lab.relief.invert, id: 'relief-inv' });
   inv.addEventListener('change', () => { lab.relief.invert = inv.checked; });
   const mode5 = h('div', { class: 'mode' },
-    h('h3', null, '3 · 2.5D relief ', h('span', { class: 'tag warn' }, 'not 3D reconstruction')),
+    h('h3', null, 'Flat relief ', h('span', { class: 'tag warn' }, '2.5D, not full 3D')),
     h('p', { class: 'hint' }, 'Builds a closed relief slab from the first image (brightness → height). Real, editable geometry, but only a height field — there is no inferred back or side.'),
     h('div', { class: 'field two' }, h('label', null, 'Height from'), src),
     h('div', { class: 'field two' }, h('label', null, 'Depth'), depth),
@@ -173,17 +173,18 @@ function renderModes(app: App, el: HTMLElement) {
   texChk.addEventListener('change', () => { lab.od.texture = texChk.checked; });
   const odStatus = h('div', { class: 'od-status', id: 'od-status', role: 'status' }, lab.od.status ? [lab.od.status, typeof lab.od.pct === 'number' ? h('progress', { max: '100', value: String(lab.od.pct) }) : lab.od.busy ? h('progress') : null] : null);
   const modeOD = h('div', { class: 'mode primary' },
-    h('h3', null, '1 · On-device 3D ', h('span', { class: 'tag ok' }, 'free · private · no account')),
-    h('p', { class: 'hint' }, `Estimates depth from the first image with ${'Depth Anything V2'} (${DEPTH_MODEL_LICENSE}) running in this browser, then builds a closed, sculptable mesh. The front comes from the estimated depth; the back and sides are inferred. Nothing is uploaded. The first run downloads the model (about ${DEPTH_MODEL_SIZE_MB} MB) once; after that it is cached.`),
+    h('h3', null, 'Make 3D from photo ', h('span', { class: 'tag ok' }, 'free · stays on this device')),
+    h('p', { class: 'hint' }, `Turns the first photo into a solid you can sculpt. The front follows the photo; the back is guessed. First use downloads a ${DEPTH_MODEL_SIZE_MB} MB model (Depth Anything V2, ${DEPTH_MODEL_LICENSE}) once.`),
     ON_DEVICE_AVAILABLE ? [
-      h('div', { class: 'field two' }, h('label', { for: 'od-mask' }, 'Subject'), sub),
-      rng('od-depth', 'Depth', 0.05, 0.8, 0.05, () => lab.od.opts.depthStrength, (v) => { lab.od.opts.depthStrength = v; }),
-      rng('od-back', 'Back depth', 0, 1, 0.05, () => lab.od.opts.backRatio, (v) => { lab.od.opts.backRatio = v; }),
-      rng('od-res', 'Detail', 64, 256, 16, () => lab.od.opts.resolution, (v) => { lab.od.opts.resolution = v; }),
-      h('label', { class: 'chk', for: 'od-tex' }, texChk, 'Paint the photo onto the front'),
-      button('Build 3D on this device', () => void runOnDevice(app), { class: 'small accent', disabled: !has || lab.od.busy, id: 'lab-ondevice' }),
+      button(has ? 'Make 3D' : 'Add a photo first', () => void runOnDevice(app), { class: 'accent', disabled: !has || lab.od.busy, id: 'lab-ondevice' }),
       odStatus,
-    ] : h('p', { class: 'hint warn' }, `This embedded preview cannot download the model. Use the standalone app: ${STANDALONE_URL}`),
+      h('details', { class: 'od-opts' }, h('summary', null, 'Options'),
+        h('div', { class: 'field two' }, h('label', { for: 'od-mask' }, 'Subject'), sub),
+        rng('od-depth', 'Depth', 0.05, 0.8, 0.05, () => lab.od.opts.depthStrength, (v) => { lab.od.opts.depthStrength = v; }),
+        rng('od-back', 'Back depth', 0, 1, 0.05, () => lab.od.opts.backRatio, (v) => { lab.od.opts.backRatio = v; }),
+        rng('od-res', 'Detail', 64, 256, 16, () => lab.od.opts.resolution, (v) => { lab.od.opts.resolution = v; }),
+        h('label', { class: 'chk', for: 'od-tex' }, texChk, 'Paint the photo onto the front')),
+    ] : h('p', { class: 'hint warn' }, `This embedded preview can’t download the model. Open the app: ${STANDALONE_URL}`),
   );
   // Free cloud: TRELLIS Space on Hugging Face
   const hfTok = h('input', { type: 'password', value: lab.hf.token, placeholder: 'optional free token: hf_…', 'aria-label': 'Hugging Face token', autocomplete: 'off', id: 'hf-token' });
@@ -192,7 +193,7 @@ function renderModes(app: App, el: HTMLElement) {
     h('option', { value: 'single' }, 'Single image (first image)'),
     h('option', { value: 'multi', disabled: !hfMulti, selected: hfMulti }, `Multi-view (${Math.min(4, lab.images.length)} images)`));
   const modeHF = h('div', { class: 'mode' },
-    h('h3', null, '4 · Free cloud 3D ', h('span', { class: 'tag' }, 'free · uploads image')),
+    h('h3', null, 'Full 3D in the cloud ', h('span', { class: 'tag' }, 'free · uploads the photo')),
     h('p', { class: 'hint' }, 'Full 3D (including the back) from TRELLIS, an open model running on a public Hugging Face Space. Free; Hugging Face limits how much GPU time each visitor gets per day. A free Hugging Face account token (huggingface.co/settings/tokens, "Read") gives a larger allowance. The token stays in this tab only. The Space is community-run and may be busy or asleep.'),
     h('div', { class: 'field two' }, h('label', { for: 'hf-token' }, 'HF token'), hfTok),
     lab.hf.status ? h('p', { class: `pill ${lab.hf.ok ? 'on' : 'warn'}`, id: 'hf-status' }, lab.hf.status) : null,
@@ -251,7 +252,10 @@ function renderModes(app: App, el: HTMLElement) {
       button('Review & submit…', () => { const pr = provider(); if (pr && lab.caps) void consentFlow(app, pr, lab.caps, `bridge ${lab.bridgeUrl}`, modeSel.value as 'single' | 'multi', { should_texture: tex.checked }); }, { class: 'small accent', disabled: !has, id: 'recon-submit' }),
     ) : h('p', { class: 'hint' }, 'No server connected. Everything else in the Image Lab works without one.'),
   );
-  replace(el, modeOD, mode1, mode5, modeHF, mode2, renderJobs(app));
+  const more = h('details', { class: 'more-ways', id: 'lab-more', open: lab.moreOpen || !!lab.jobs.size },
+    h('summary', null, 'More ways'), mode1, mode5, modeHF, mode2);
+  more.addEventListener('toggle', () => { lab.moreOpen = more.open; });
+  replace(el, modeOD, more, (lab.jobs.size || app.jobs.length) ? renderJobs(app) : null);
 }
 
 async function consentFlow(app: App, pr: ReconstructionProvider, caps: ProviderCapabilities, via: string, mode: 'single' | 'multi', options: Record<string, unknown>) {
@@ -467,7 +471,8 @@ async function runOnDevice(app: App) {
       inferredWarning: 'Front surface from an estimated (relative) depth map, not a measurement. Back and sides are inferred. Sculpt to refine.',
     }, material);
     setStatus(`Done in ${((performance.now() - t0) / 1000).toFixed(1)} s (depth ${(inferMs / 1000).toFixed(1)} s). Subject from ${outline}.`);
-    app.toast('ok', 'On-device 3D added as a new object. It is editable like any other mesh.');
+    app.toast('ok', 'Your 3D model is ready. Sculpt it like any other shape.');
+    document.getElementById('image-lab')?.querySelector<HTMLButtonElement>('.dlg-head button')?.click();
   } catch (e) {
     setStatus(`Failed: ${(e as Error)?.message ?? e}`);
     app.toast('error', `On-device 3D failed: ${(e as Error)?.message ?? e}`, ['The model download needs an internet connection the first time.', 'Your scene was not changed.']);

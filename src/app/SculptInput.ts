@@ -46,7 +46,9 @@ export class SculptInput {
     if (this.forwarding || e.target !== this.canvas()) return;
     this.downAt = { x: e.clientX, y: e.clientY, t: performance.now() };
     if (e.pointerType === 'touch') {
+      if (this.touches.size === 0) this.tap = { start: performance.now(), max: 0, moved: false, origin: new Map() };
       this.touches.set(e.pointerId, e);
+      if (this.tap) { this.tap.origin.set(e.pointerId, { x: e.clientX, y: e.clientY }); this.tap.max = Math.max(this.tap.max, this.touches.size); }
       if (this.touches.size >= 2 && this.strokePointer !== null) {
         // Second finger: abandon the stroke and give both pointers to the camera.
         this.app.cancelStroke();
@@ -59,17 +61,21 @@ export class SculptInput {
       if (this.touches.size >= 2) return;
     }
     const app = this.app;
+    if (e.pointerType === 'pen') this.notePen();
     if (app.tool !== 'sculpt') return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     if (this.spaceHeld || e.altKey) return;
-    if (e.pointerType === 'touch' && app.penOnlySculpt) return;
+    // Palm rejection: once a pen has been used (or pen-only is on), fingers only navigate.
+    if (e.pointerType === 'touch' && (app.penOnlySculpt || (app.autoPalmRejection && app.penSeen))) return;
     const hit = app.viewport.pick(e.clientX, e.clientY);
     if (!hit) return; // background → orbit
     e.stopPropagation();
     e.preventDefault();
     if (app.selected?.id !== hit.obj.id) app.select(hit.obj.id);
     const pressure = this.pressure(e);
-    if (!app.beginStroke(hit.obj, hit.hit.point, pressure)) return;
+    // S Pen side (barrel) button = buttons bit 2; eraser end = bit 32. Either inverts this stroke.
+    const invert = e.pointerType === 'pen' && ((e.buttons & 2) !== 0 || (e.buttons & 32) !== 0 || e.button === 5);
+    if (!app.beginStroke(hit.obj, hit.hit.point, pressure, invert)) return;
     this.strokePointer = e.pointerId;
     this.strokePointerType = e.pointerType;
     this.lastDown = e;
@@ -80,11 +86,30 @@ export class SculptInput {
   private pressure(e: PointerEvent) {
     // Mouse reports 0.5 while pressed and touch is often 0/1; only pens provide meaningful pressure.
     if (e.pointerType !== 'pen') return 1;
-    return e.pressure > 0 ? Math.min(1, 0.15 + e.pressure * 0.85) : 1;
+    if (!(e.pressure > 0)) return 1;
+    const gamma = this.app.pressureCurve === 'soft' ? 0.6 : this.app.pressureCurve === 'firm' ? 1.7 : 1;
+    return Math.min(1, 0.12 + Math.pow(e.pressure, gamma) * 0.88);
+  }
+
+  private penNoted = false;
+  private notePen() {
+    const app = this.app;
+    if (app.penSeen) return;
+    app.penSeen = true;
+    if (!this.penNoted && app.autoPalmRejection) {
+      this.penNoted = true;
+      app.toast('info', 'Pen detected: fingers now only move the view (palm rejection). Side button inverts the brush.', undefined, 4500);
+      app.emit('brush');
+    }
   }
 
   private move(e: PointerEvent) {
-    if (e.pointerType === 'touch' && this.touches.has(e.pointerId)) this.touches.set(e.pointerId, e);
+    if (e.pointerType === 'touch' && this.touches.has(e.pointerId)) {
+      this.touches.set(e.pointerId, e);
+      const o = this.tap?.origin.get(e.pointerId);
+      if (o && Math.hypot(e.clientX - o.x, e.clientY - o.y) > 14) this.tap!.moved = true;
+    }
+    if (e.pointerType === 'pen' && e.buttons === 0) this.notePen();
     if (this.strokePointer !== null && e.pointerId === this.strokePointer) {
       e.stopPropagation();
       const evs = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : [];
@@ -116,8 +141,19 @@ export class SculptInput {
     app.viewport.placeCursor(point, normal ?? new THREE.Vector3(0, 1, 0), app.settings.radius, mirrors, obj);
   }
 
+  /** Two-finger tap = undo, three-finger tap = redo (short, nearly motionless multi-touch). */
+  private tap: { start: number; max: number; moved: boolean; origin: Map<number, { x: number; y: number }> } | null = null;
+  private endTouch(id: number) {
+    this.touches.delete(id);
+    if (this.touches.size || !this.tap) return;
+    const t = this.tap; this.tap = null;
+    if (t.moved || performance.now() - t.start > 500) return;
+    if (t.max === 2) this.app.undo();
+    else if (t.max === 3) this.app.redo();
+  }
+
   private up(e: PointerEvent) {
-    if (e.pointerType === 'touch') this.touches.delete(e.pointerId);
+    if (e.pointerType === 'touch') this.endTouch(e.pointerId);
     if (this.strokePointer !== null && e.pointerId === this.strokePointer) {
       e.stopPropagation();
       this.strokePointer = null;
@@ -136,7 +172,7 @@ export class SculptInput {
   }
 
   private cancel(e: PointerEvent) {
-    if (e.pointerType === 'touch') this.touches.delete(e.pointerId);
+    if (e.pointerType === 'touch') { this.touches.delete(e.pointerId); if (!this.touches.size) this.tap = null; }
     if (this.strokePointer !== null && e.pointerId === this.strokePointer) {
       this.strokePointer = null;
       this.app.cancelStroke(); // pointercancel: roll back, no history

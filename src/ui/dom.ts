@@ -106,4 +106,92 @@ export const ICON = {
   play: '<svg viewBox="0 0 24 24"><path d="M7 5l12 7-12 7z"/></svg>',
   panel: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg>',
   command: '<svg viewBox="0 0 24 24"><path d="M9 6a3 3 0 10-3 3h12a3 3 0 10-3-3v12a3 3 0 103-3H6a3 3 0 103 3z"/></svg>',
+  fullscreen: '<svg viewBox="0 0 24 24"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/></svg>',
+  exitFullscreen: '<svg viewBox="0 0 24 24"><path d="M9 4v5H4M20 9h-5V4M15 20v-5h5M4 15h5v5"/></svg>',
+  more: '<svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>',
+  menu: '<svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
+  view: '<svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg>',
+  settings: '<svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>',
+  symmetry: '<svg viewBox="0 0 24 24"><path d="M12 3v18" stroke-dasharray="2 2"/><path d="M9 7L4 12l5 5zM15 7l5 5-5 5z"/></svg>',
+  invert: '<svg viewBox="0 0 24 24"><path d="M12 5v14M7 10l5-5 5 5M7 14l5 5 5-5" opacity=".9"/></svg>',
+  install: '<svg viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>',
+  pen: '<svg viewBox="0 0 24 24"><path d="M15 4l5 5L9 20H4v-5z"/><path d="M13 6l5 5"/></svg>',
 };
+
+/** Anchored popover (menus, view options, brush settings). Closes on outside press or Escape. */
+export function popover(anchor: HTMLElement, content: HTMLElement, opts: { side?: 'below' | 'left' | 'right' | 'above'; id?: string; label: string }) {
+  document.querySelectorAll('.pop').forEach((p) => p.remove());
+  const pop = h('div', { class: `pop pop-${opts.side ?? 'below'}`, role: 'dialog', 'aria-label': opts.label, id: opts.id }, content);
+  document.body.appendChild(pop);
+  const place = () => {
+    const a = anchor.getBoundingClientRect(), p = pop.getBoundingClientRect();
+    const vw = window.innerWidth, vh = window.innerHeight, m = 8;
+    let x = a.left, y = a.bottom + m;
+    switch (opts.side ?? 'below') {
+      case 'below': x = Math.min(a.right - p.width, vw - p.width - m); x = Math.max(m, Math.min(x, a.left)); y = a.bottom + m; if (a.right - p.width > m) x = a.right - p.width; break;
+      case 'above': x = Math.max(m, Math.min(a.left, vw - p.width - m)); y = a.top - p.height - m; break;
+      case 'right': x = a.right + m; y = Math.max(m, Math.min(a.top, vh - p.height - m)); break;
+      case 'left': x = a.left - p.width - m; y = Math.max(m, Math.min(a.top, vh - p.height - m)); break;
+    }
+    pop.style.left = `${Math.max(m, Math.min(x, vw - p.width - m))}px`;
+    pop.style.top = `${Math.max(m, Math.min(y, vh - p.height - m))}px`;
+  };
+  place();
+  const close = () => { pop.remove(); document.removeEventListener('pointerdown', outside, true); document.removeEventListener('keydown', esc, true); anchor.setAttribute('aria-expanded', 'false'); };
+  const outside = (e: Event) => { if (!pop.contains(e.target as Node) && !anchor.contains(e.target as Node)) close(); };
+  const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') { close(); anchor.focus(); e.stopPropagation(); } };
+  setTimeout(() => { document.addEventListener('pointerdown', outside, true); document.addEventListener('keydown', esc, true); });
+  anchor.setAttribute('aria-expanded', 'true');
+  (pop.querySelector<HTMLElement>('button, input, select') ?? pop).focus?.();
+  return { pop, close, place };
+}
+
+/**
+ * Large vertical slider for pen and finger (Procreate-style edge control). Drag anywhere on the track,
+ * keyboard arrows step, value shows in a bubble while dragging.
+ */
+export function vSlider(opts: { id: string; label: string; min: number; max: number; value: number; log?: boolean; format: (v: number) => string; onInput: (v: number) => void }) {
+  const to = (v: number) => (opts.log ? Math.log(v) : v);
+  const from = (t: number) => (opts.log ? Math.exp(t) : t);
+  const lo = to(opts.min), hi = to(opts.max);
+  const fill = h('div', { class: 'vs-fill' });
+  const thumb = h('div', { class: 'vs-thumb' });
+  const bubble = h('div', { class: 'vs-bubble', 'aria-hidden': 'true' });
+  const track = h('div', { class: 'vs-track' }, fill, thumb);
+  const el = h('div', { class: 'vslider', id: opts.id, role: 'slider', tabindex: '0', 'aria-label': opts.label, 'aria-orientation': 'vertical', 'aria-valuemin': String(opts.min), 'aria-valuemax': String(opts.max) },
+    track, bubble, h('span', { class: 'vs-label' }, opts.label));
+  let value = opts.value;
+  const render = () => {
+    const t = Math.min(1, Math.max(0, (to(value) - lo) / (hi - lo)));
+    fill.style.height = `${t * 100}%`;
+    thumb.style.bottom = `calc(${t * 100}% - 11px)`;
+    bubble.textContent = opts.format(value);
+    el.setAttribute('aria-valuenow', String(+value.toFixed(4)));
+    el.setAttribute('aria-valuetext', opts.format(value));
+  };
+  const setFromY = (clientY: number) => {
+    const r = track.getBoundingClientRect();
+    const t = Math.min(1, Math.max(0, (r.bottom - clientY) / r.height));
+    value = from(lo + t * (hi - lo));
+    render(); opts.onInput(value);
+  };
+  el.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    el.setPointerCapture(e.pointerId);
+    el.classList.add('dragging');
+    setFromY(e.clientY);
+    const move = (ev: PointerEvent) => { const list = typeof ev.getCoalescedEvents === 'function' ? ev.getCoalescedEvents() : []; setFromY((list.at(-1) ?? ev).clientY); };
+    const up = () => { el.classList.remove('dragging'); el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up); };
+    el.addEventListener('pointermove', move); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+  });
+  el.addEventListener('keydown', (e) => {
+    const step = (hi - lo) / (e.key === 'PageUp' || e.key === 'PageDown' ? 5 : 40);
+    const dir = e.key === 'ArrowUp' || e.key === 'ArrowRight' || e.key === 'PageUp' ? 1 : e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'PageDown' ? -1 : 0;
+    if (!dir) return;
+    e.preventDefault();
+    value = from(Math.min(hi, Math.max(lo, to(value) + dir * step)));
+    render(); opts.onInput(value);
+  });
+  render();
+  return { el, set: (v: number) => { if (el.classList.contains('dragging')) return; value = v; render(); } };
+}

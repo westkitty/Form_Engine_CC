@@ -46,6 +46,7 @@ Status values:
 | **Live image-to-3D with Meshy (paid, optional)** | **UNVERIFIED** | No API key was available. The adapter follows the docs at docs.meshy.ai (2026-10-21). To verify: `MESHY_API_KEY=… npm run proxy`, then run Journey 3 in the UI with a real photo |
 | Touch: one-finger sculpt; two-finger navigates without deforming | PASS (emulated) | J5 (CDP touch events, 1024×768): one finger `maxDelta 0.051`; two fingers moved the camera, geometry `maxDelta 0`, no history entry |
 | Pen pressure | PASS (emulated) | J5: CDP pen events — force 0.15 → `0.0149`, force 1.0 → `0.0547` |
+| Tablet & S Pen behaviour | PASS (emulated) | E2E J9 at 1232×770 (Tab S9 Ultra class):<br>• Size slider drag 0.25 → 0.48<br>• pen stroke raises the surface; **side button** pushes it in<br>• after pen use, a finger drag on the mesh moves nothing (`maxDelta 0`)<br>• two-finger tap undoes, three-finger tap redoes to the exact geometry<br>• manifest is installable (`display: fullscreen`, PNG 192/512 + maskable)<br>Accessibility: `docs/ACCESSIBILITY.md` (all touch targets ≥ 44 px, contrast ≥ 5.8:1) |
 | Real tablet / phone hardware | UNVERIFIED | No physical devices here. Layout verified only by emulated viewports (below) |
 | Responsive layouts 1440×900, 1024×768, 768×1024, 390×844 | PASS | `screenshots/vqa-*.png`; no horizontal overflow; phone inspector drawer and Image Lab checked |
 | No leaked GPU resources / loops | PASS | 20 new-project + import cycles: GPU geometries 6 → 6, textures 7 → 7, overlays = 2 × objects |

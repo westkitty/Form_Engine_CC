@@ -2,6 +2,9 @@ import './styles/app.css';
 import { App } from './app/App';
 import { Shell, localStorageGet } from './ui/Shell';
 import { h } from './ui/dom';
+import { initInstall, consumeLaunchFiles } from './ui/install';
+
+initInstall();
 
 /** Runtime capability probe — what this surface (browser tab, PWA, embedded artifact iframe) really allows. */
 export async function detectCapabilities() {
@@ -52,6 +55,7 @@ async function boot() {
   if (!restored) app.newProject(true);
   shell.renderInspector();
   if (!params.has('fresh')) shell.showOnboarding();
+  consumeLaunchFiles((files) => void shell.handleFiles(files));
   if ('serviceWorker' in navigator && import.meta.env.PROD && location.protocol === 'https:' && !caps.embedded) {
     navigator.serviceWorker.register(`${import.meta.env.BASE_URL}sw.js`).catch(() => { /* offline support is optional */ });
   }

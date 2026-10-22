@@ -76,6 +76,17 @@ Every result is a normal editable object, with provenance that states what was m
 
 **Touch:** one finger on the mesh sculpts. Two fingers orbit, pan and zoom; if a stroke was in progress, it is rolled back.
 
+## On a tablet (Galaxy Tab S9 Ultra, iPad, any Android tablet)
+
+- **Install it as an app:** open https://westkitty.github.io/Form_Engine_CC/ in Chrome or Samsung Internet. Use the **Install** button (top bar), or Menu → *Install as an app*, or the browser menu → *Add to home screen*. It then launches from its icon **full screen**, in its own window, and works offline. On Android this is a real installed app (WebAPK). On iPad: Safari → Share → *Add to Home Screen*.
+- **S Pen:**
+  - pressure controls strength, with Soft / Natural / Firm feel in Brush settings;
+  - hold the **side button** to push in instead of out;
+  - hovering shows the brush ring;
+  - after the first pen stroke, **fingers only move the view** (palm rejection; can be switched off).
+- **Gestures:** one finger on the background turns the view; two fingers pan and zoom; **two-finger tap = undo**, **three-finger tap = redo**.
+- **Layout:** the tall **Size** and **Strength** sliders sit on the screen edge for your other hand. Menu → *Left-handed layout* swaps the sides.
+
 ## Live
 
 - **Standalone app (GitHub Pages):** https://westkitty.github.io/Form_Engine_CC/. Served from the `gh-pages` branch.

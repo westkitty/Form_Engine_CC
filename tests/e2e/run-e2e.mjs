@@ -99,6 +99,21 @@ async function strokeAcrossCenter(page, dx = 0.12, dy = 0.02) {
   await drag(page, { x: cx - b.width * dx, y: cy - b.height * dy }, { x: cx + b.width * dx, y: cy + b.height * dy });
 }
 
+/** Drag across the mesh starting from a screen point verified to hit it (layout-independent). */
+async function strokeOnMesh(page, len = 60) {
+  const b = await canvasBox(page);
+  const pt = await page.evaluate(([w, h, x0, y0, len]) => {
+    const app = window.__formengine.app;
+    for (let r = 0; r < 260; r += 8) for (let a = 0; a < 6.28; a += 0.4) {
+      const x = x0 + w / 2 + Math.cos(a) * r, y = y0 + h / 2 + Math.sin(a) * r;
+      if (app.viewport.pick(x, y) && app.viewport.pick(x + len, y)) return { x, y };
+    }
+    return null;
+  }, [b.width, b.height, b.x, b.y, len]);
+  if (!pt) throw new Error('no point on the mesh found for a stroke');
+  await drag(page, pt, { x: pt.x + len, y: pt.y + 4 });
+}
+
 async function saveDownload(page, trigger, name) {
   const [dl] = await Promise.all([page.waitForEvent('download', { timeout: 30000 }), trigger()]);
   const path = `${OUT}/${name ?? dl.suggestedFilename()}`;
@@ -288,7 +303,7 @@ async function main() {
     await snap(page, 'duck0');
     await page.keyboard.press('b');
     await page.evaluate(() => window.__formengine.app.updateSettings({ radius: 0.15, strength: 0.8 }));
-    await strokeAcrossCenter(page, 0.05, 0.05);
+    await strokeOnMesh(page);
     const d = await delta(page, 'duck0');
     ev.sculptOnImported = d;
     assert(d.maxDelta > 1e-3, 'imported duck was sculpted');
@@ -296,7 +311,7 @@ async function main() {
     await worldSnap(page, 'duckEdited');
     const editedWorld = await page.evaluate(() => window.__world.duckEdited);
     // Save project file (download) and autosave, then reload → restore
-    const proj = await saveDownload(page, () => page.click('#btn-save'), 'j2-duck.formengine');
+    const proj = await saveDownload(page, async () => { await page.click('#btn-menu'); await page.click('#btn-save'); }, 'j2-duck.formengine');
     ev.projectFile = proj;
     await page.evaluate(() => window.__formengine.app.autosaveNow());
     await page.goto(BASE); // normal load (no ?fresh) → restores last autosave
@@ -323,7 +338,7 @@ async function main() {
     await p3.evaluate(() => window.__formengine.app.updateSettings({ radius: 0.15, strength: 0.8 }));
     await p3.keyboard.press('f'); await p3.waitForTimeout(200);
     await snap(p3, 'cont');
-    await strokeAcrossCenter(p3, 0.03, -0.04);
+    await strokeOnMesh(p3);
     ev.continueEditing = await delta(p3, 'cont');
     assert(ev.continueEditing.maxDelta > 1e-3, 'can keep sculpting after reopening');
     await p3.click('#btn-export'); await p3.waitForSelector('#export-dlg');
@@ -356,6 +371,7 @@ async function main() {
     await importFile(page, [png]);
     await page.waitForSelector('#image-lab');
     ev.noUploadBeforeConsent = requests.length === 0;
+    await page.click('#lab-more > summary');
     await page.click('#bridge-advanced > summary');
     await page.fill('#bridge-url', `http://127.0.0.1:${bridgePort}`);
     await page.click('#bridge-test');
@@ -429,10 +445,14 @@ async function main() {
     assert(/Provider not connected/.test(ev.status), 'shows Provider not connected');
     ev.submitButtonPresent = await page.$('#recon-submit') !== null;
     assert(!ev.submitButtonPresent, 'no submit without provider');
+    ev.onDeviceOffered = await page.isVisible('#lab-ondevice');
+    assert(ev.onDeviceOffered, 'free on-device option is the primary action');
+    await page.click('#lab-more > summary');
     await page.click('#lab-reference');
     await page.waitForTimeout(400);
     ev.references = await page.evaluate(() => window.__formengine.app.references.length);
     assert(ev.references === 1, 'reference plane placed');
+    await page.evaluate(() => document.getElementById('lab-more')?.setAttribute('open', ''));
     await page.click('#lab-relief');
     await page.waitForTimeout(500);
     const relief = await page.evaluate(() => { const o = window.__formengine.app.selected; const r = window.__formengine.app.meshReport(o); return { source: o.provenance.source, warning: o.provenance.inferredWarning, tris: r.triangles, watertight: r.watertight }; });
@@ -622,10 +642,11 @@ async function main() {
     await page.waitForSelector('#image-lab');
     await page.click('#lab-ondevice');
     const t0 = Date.now();
-    await page.waitForFunction(() => /Done in|Failed/.test(document.getElementById('od-status')?.textContent ?? ''), null, { timeout: 300000 });
-    ev.status = await page.textContent('#od-status');
+    await page.waitForFunction(() => window.__formengine.app.model.objects.some((o) => o.provenance.source === 'depth') || /Failed/.test(document.getElementById('od-status')?.textContent ?? ''), null, { timeout: 300000 });
     ev.wallSeconds = (Date.now() - t0) / 1000;
-    assert(/Done in/.test(ev.status), `on-device reconstruction finished: ${ev.status}`);
+    ev.status = await page.evaluate(() => window.__formengine.app.toasts.map((t) => t.text).join(' | '));
+    ev.labClosedOnSuccess = !(await page.$('#image-lab'));
+    assert(/ready/i.test(ev.status), `on-device reconstruction finished: ${ev.status}`);
     ev.externalRequests = [...new Set(external)];
     ev.uploads = external.filter((r) => r.startsWith('POST') || r.startsWith('PUT'));
     assert(ev.uploads.length === 0, 'nothing was uploaded (only model/runtime downloads)');
@@ -661,9 +682,81 @@ async function main() {
     await ctx.close();
   });
 
+
+  // ───────────── Journey 9: tablet & S Pen ─────────────
+  await journey('J9 tablet & pen: palm rejection, finger-tap undo/redo, side-button invert, edge sliders, installable app', async (ev) => {
+    const { page, ctx } = await newPage({ viewport: { width: 1232, height: 770 }, hasTouch: true });
+    await boot(page);
+    const cdp = await ctx.newCDPSession(page);
+    const b = await canvasBox(page);
+    const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+    const touch = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts.map((p, i) => ({ x: p.x, y: p.y, id: p.id ?? i, radiusX: 4, radiusY: 4, force: 1 })) });
+    // A real S Pen touching the screen with its side button held arrives as pointerdown button=2 / buttons=2.
+    const pen = async (force, side = false, dx = 0) => {
+      const button = side ? 'right' : 'left', buttons = side ? 2 : 1;
+      await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: cx - 60 + dx, y: cy, pointerType: 'pen' });
+      await cdp.send('Input.dispatchMouseEvent', { type: 'mousePressed', x: cx - 60 + dx, y: cy, button, buttons, clickCount: 1, pointerType: 'pen', force });
+      for (let i = 1; i <= 12; i++) await cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: cx - 60 + dx + i * 9, y: cy + 2, button, buttons, pointerType: 'pen', force });
+      await cdp.send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: cx + 48 + dx, y: cy + 2, button, buttons: 0, clickCount: 1, pointerType: 'pen', force });
+      await page.waitForTimeout(80);
+    };
+    // Edge slider: drag Size to the top → radius grows
+    const r0 = await page.evaluate(() => window.__formengine.app.settings.radius);
+    const sz = await page.locator('#rail-size .vs-track').boundingBox();
+    await touch('touchStart', [{ x: sz.x + sz.width / 2, y: sz.y + sz.height * 0.6 }]);
+    await touch('touchMove', [{ x: sz.x + sz.width / 2, y: sz.y + sz.height * 0.25 }]);
+    await touch('touchEnd', []);
+    ev.sizeSlider = { before: r0, after: await page.evaluate(() => window.__formengine.app.settings.radius) };
+    assert(ev.sizeSlider.after > r0 * 1.3, 'dragging the Size slider up enlarges the brush');
+    await page.evaluate(() => window.__formengine.app.updateSettings({ radius: 0.2, strength: 0.6 }));
+    // Pen stroke raises the surface (outward); side button makes it push inward
+    const outward = async () => page.evaluate(() => { const p = window.__formengine.app.selected.editable.positions, a = window.__snaps.p0.pos; let s = 0; for (let i = 0; i < p.length; i += 3) { const r0 = Math.hypot(a[i], a[i + 1], a[i + 2]), r1 = Math.hypot(p[i], p[i + 1], p[i + 2]); s += r1 - r0; } return s; });
+    await snap(page, 'p0');
+    await pen(0.9);
+    ev.penOutward = await outward();
+    assert(ev.penOutward > 1e-3, 'pen stroke raises clay');
+    await snap(page, 'p0');
+    await pen(0.9, true, -20); // side button held
+    ev.sideButtonInward = await outward();
+    assert(ev.sideButtonInward < -1e-3, 'S Pen side button inverts the stroke (pushes in)');
+    ev.penSeen = await page.evaluate(() => window.__formengine.app.penSeen);
+    // Palm rejection: after pen use, a finger drag on the mesh must not sculpt
+    await snap(page, 'palm');
+    await touch('touchStart', [{ x: cx - 30, y: cy + 20 }]);
+    for (let i = 1; i <= 10; i++) await touch('touchMove', [{ x: cx - 30 + i * 8, y: cy + 20 }]);
+    await touch('touchEnd', []);
+    await page.waitForTimeout(120);
+    ev.palmDelta = await delta(page, 'palm');
+    assert(ev.penSeen && ev.palmDelta.maxDelta === 0, 'finger on the mesh does not sculpt once a pen was used');
+    // Two-finger tap = undo, three-finger tap = redo
+    await snap(page, 'beforeUndo');
+    const h0 = await page.evaluate(() => window.__formengine.app.history.size);
+    await touch('touchStart', [{ x: cx - 200, y: cy - 150, id: 1 }, { x: cx - 140, y: cy - 150, id: 2 }]);
+    await touch('touchEnd', []);
+    await page.waitForTimeout(150);
+    const h1 = await page.evaluate(() => window.__formengine.app.history.size);
+    ev.twoFingerTapUndo = { before: h0, after: h1 };
+    assert(h1 === h0 - 1, 'two-finger tap undoes');
+    await touch('touchStart', [{ x: cx - 200, y: cy - 150, id: 1 }, { x: cx - 160, y: cy - 150, id: 2 }, { x: cx - 120, y: cy - 150, id: 3 }]);
+    await touch('touchEnd', []);
+    await page.waitForTimeout(150);
+    ev.threeFingerTapRedo = await page.evaluate(() => window.__formengine.app.history.size);
+    assert(ev.threeFingerTapRedo === h0, 'three-finger tap redoes');
+    ev.afterRedo = await delta(page, 'beforeUndo');
+    assert(ev.afterRedo.maxDelta === 0, 'redo restores the exact geometry');
+    // Install readiness
+    const man = await page.evaluate(async () => { const href = document.querySelector('link[rel=manifest]').href; const m = await (await fetch(href)).json(); const icons = await Promise.all(m.icons.filter((i) => i.type === 'image/png').map(async (i) => { const r = await fetch(new URL(i.src, href)); return { src: i.src, sizes: i.sizes, purpose: i.purpose, ok: r.ok, type: r.headers.get('content-type') }; })); return { display: m.display, display_override: m.display_override, start_url: m.start_url, icons }; });
+    ev.manifest = man;
+    assert(man.display === 'fullscreen' && man.icons.some((i) => i.sizes === '192x192' && i.ok) && man.icons.some((i) => i.sizes === '512x512' && i.ok) && man.icons.some((i) => i.purpose === 'maskable'), 'manifest is installable: fullscreen + PNG 192/512 + maskable');
+    ev.fullscreenButton = await page.isVisible('#btn-fullscreen');
+    await page.screenshot({ path: `${OUT}/j9-tablet.png` });
+    ev.pageErrors = page.__errors;
+    await ctx.close();
+  });
+
   // ───────────── Visual QA at 4 sizes ─────────────
   await journey('Visual QA screenshots 1440x900, 1024x768, 768x1024, 390x844', async (ev) => {
-    for (const [w, h, mobile] of [[1440, 900, false], [1024, 768, false], [768, 1024, true], [390, 844, true]]) {
+    for (const [w, h, mobile] of [[1440, 900, false], [1232, 770, true], [1024, 768, false], [768, 1024, true], [390, 844, true]]) {
       const { page, ctx } = await newPage({ viewport: { width: w, height: h }, hasTouch: mobile, isMobile: mobile });
       await boot(page);
       await page.waitForTimeout(400);
@@ -672,7 +765,7 @@ async function main() {
       ev[`${w}x${h}`] = { horizontalOverflow: overflow };
       assert(!overflow, `${w}x${h} has no horizontal overflow`);
       if (w <= 760) {
-        await page.click('button[aria-label="Toggle inspector panel"]');
+        await page.click('#btn-panel');
         await page.waitForTimeout(400);
         await page.screenshot({ path: `${OUT}/vqa-${w}x${h}-inspector.png` });
       }

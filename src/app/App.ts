@@ -34,6 +34,13 @@ export class App {
   symmetry: SymmetrySettings = { x: true, y: false, z: false };
   transformMode: TransformMode = 'translate';
   penOnlySculpt = false;
+  /** Pen pressure response: soft = light touch goes further, firm = needs more pressure. */
+  pressureCurve: 'soft' | 'linear' | 'firm' = 'linear';
+  /** Set once a pen is used; fingers then only navigate (palm rejection) unless the user turns it off. */
+  penSeen = false;
+  autoPalmRejection = true;
+  /** Which side the brush dock sits on (left-handed users want the sliders on the left). */
+  handedness: 'right' | 'left' = 'right';
   /** False when the host blocks IndexedDB (e.g. sandboxed embeds); autosave is then skipped honestly. */
   storageOk = true;
   units: Units = 'm';
@@ -234,9 +241,9 @@ export class App {
   private grabStartLocal = new THREE.Vector3();
   private samples: THREE.Vector3[] = [];
 
-  beginStroke(obj: SceneObject, worldPoint: THREE.Vector3, pressure: number): boolean {
+  beginStroke(obj: SceneObject, worldPoint: THREE.Vector3, pressure: number, invertOverride = false): boolean {
     if (obj.locked || !obj.visible) return false;
-    const s = this.settings;
+    const s = invertOverride ? { ...this.settings, invert: !this.settings.invert } : this.settings;
     const localRadius = s.radius / this.localScale(obj);
     this.stroke = new SculptStroke(obj.editable, this.brush, s, localRadius, this.symmetry);
     this.strokeObj = obj;
@@ -637,7 +644,7 @@ export class App {
   persistPrefs() {
     clearTimeout(this.prefsTimer);
     this.prefsTimer = window.setTimeout(() => {
-      if (this.storageOk && store.storageAvailable()) store.kvSet('prefs', { brush: this.brush, brushSettings: this.brushSettings, symmetry: this.symmetry, penOnlySculpt: this.penOnlySculpt }).catch(() => {});
+      if (this.storageOk && store.storageAvailable()) store.kvSet('prefs', { brush: this.brush, brushSettings: this.brushSettings, symmetry: this.symmetry, penOnlySculpt: this.penOnlySculpt, pressureCurve: this.pressureCurve, autoPalmRejection: this.autoPalmRejection, handedness: this.handedness }).catch(() => {});
     }, 500);
   }
   async loadPrefs() {
@@ -648,6 +655,9 @@ export class App {
       if (p.brush) this.brush = p.brush;
       if (p.symmetry) this.symmetry = p.symmetry;
       this.penOnlySculpt = !!p.penOnlySculpt;
+      if (p.pressureCurve) this.pressureCurve = p.pressureCurve;
+      if (typeof p.autoPalmRejection === 'boolean') this.autoPalmRejection = p.autoPalmRejection;
+      if (p.handedness) this.handedness = p.handedness;
     } catch { /* prefs are optional */ }
   }
 

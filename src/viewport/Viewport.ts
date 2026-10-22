@@ -36,6 +36,8 @@ export class Viewport {
   readonly lightRig = new THREE.Group();
   readonly ground: THREE.Mesh;
   viewMode: ViewMode = 'studio';
+  /** Axis gizmo placement (CSS px from the canvas top-right); hidden on narrow screens. */
+  gizmo = { visible: true, top: 80, right: 16 };
   wireframe = false;
   turntable = false;
   /** Lowered during strokes (DPR cap) and restored on idle. */
@@ -349,14 +351,20 @@ export class Viewport {
     this.renderer.autoClear = true;
     this.renderer.render(this.scene, this.camera);
     this.renderer.autoClear = false;
-    this.viewHelper.render(this.renderer);
+    this.renderGizmo();
     this.renderMs.push(performance.now() - now);
     if (this.renderMs.length > 240) this.renderMs.shift();
     this.onAfterRender();
   };
 
+  private renderGizmo() {
+    if (!this.gizmo.visible) return;
+    (this.viewHelper as any).location = { top: this.gizmo.top, right: this.gizmo.right, bottom: null, left: null };
+    this.viewHelper.render(this.renderer);
+  }
+
   /** Render one frame immediately (for captures). */
-  renderNow() { this.dirty = true; this.renderer.render(this.scene, this.camera); this.viewHelper.render(this.renderer); }
+  renderNow() { this.dirty = true; this.renderer.render(this.scene, this.camera); this.renderer.autoClear = false; this.renderGizmo(); this.renderer.autoClear = true; }
 
   dispose() {
     cancelAnimationFrame(this.raf);

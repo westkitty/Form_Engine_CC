@@ -58,12 +58,16 @@ export function openHelp() {
       ['[  ]', 'Brush radius'], ['Shift+[  ]', 'Brush strength'], ['R', 'Reference tool'],
     ])),
     h('div', null, h('h3', null, 'View & project'), table([
-      ['F', 'Frame selection'], ['1 / 3 / 7', 'Front / right / top'], ['0', 'Isometric'], ['5', 'Ortho / perspective'], ['Shift+W', 'Wireframe'], ['H', 'Diagnostics HUD'], ['Shift+P', 'Presentation (Esc exits)'],
+      ['F', 'Frame selection'], ['1 / 3 / 7', 'Front / right / top'], ['0', 'Isometric'], ['5', 'Ortho / perspective'], ['Shift+W', 'Wireframe'], ['H', 'Diagnostics'], ['Tab', 'Object panel'], ['Shift+P', 'Turntable (Esc exits)'],
       ['Ctrl/⌘+Z', 'Undo'], ['Ctrl/⌘+Shift+Z, Ctrl+Y', 'Redo'], ['Ctrl/⌘+S', 'Save project file'], ['Ctrl/⌘+E', 'Export'], ['Ctrl/⌘+K', 'Command palette'], ['Ctrl/⌘+D', 'Duplicate'], ['Del', 'Delete object'], ['O', 'Import'], ['?', 'This help'],
     ])),
-    h('div', null, h('h3', null, 'Mouse, pen & touch'), table([
-      ['Left-drag on mesh', 'Sculpt with current brush'], ['Left-drag on background', 'Orbit'], ['Right-drag', 'Pan'], ['Middle-drag / wheel', 'Zoom'], ['Alt+drag · Space+drag', 'Orbit even over the mesh'],
-      ['Pen', 'Sculpt with pressure (when the device reports it)'], ['One finger on mesh', 'Sculpt (off in pen-only mode)'], ['Two fingers', 'Orbit / pan / pinch-zoom; cancels an in-progress stroke'], ['Esc', 'Cancel the current stroke'],
+    h('div', null, h('h3', null, 'S Pen & touch'), table([
+      ['Pen on the clay', 'Sculpt; press harder for more'], ['Pen + side button', 'Push in instead of out (invert)'], ['Pen hovering', 'Shows the brush ring'],
+      ['One finger on background', 'Turn the view'], ['Two fingers', 'Pan and pinch-zoom'], ['Two-finger tap', 'Undo'], ['Three-finger tap', 'Redo'],
+      ['After using the pen', 'Fingers only move the view (palm rejection; change in Brush settings)'], ['Side sliders', 'Size and Strength'],
+    ])),
+    h('div', null, h('h3', null, 'Mouse'), table([
+      ['Left-drag on mesh', 'Sculpt'], ['Left-drag on background', 'Orbit'], ['Right-drag', 'Pan'], ['Wheel', 'Zoom'], ['Alt+drag · Space+drag', 'Orbit even over the mesh'], ['Esc', 'Cancel the stroke / close panel'],
     ])),
   ));
 }
