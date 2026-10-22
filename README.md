@@ -71,11 +71,23 @@ Node ≥ 20. The browser tests use Playwright's Chromium. If a project pins a di
 
 **Touch:** one finger on the mesh sculpts. Two fingers orbit, pan and zoom; if a stroke was in progress, it is rolled back.
 
+## Live
+
+- **Standalone app (GitHub Pages):** https://westkitty.github.io/Form_Engine_CC/. Served from the `gh-pages` branch.
+- **Claude Artifact (private):** the single-file build (`npm run build:artifact` → `dist-artifact/form-engine.html`). In the artifact, sculpting, import, the Image Lab, references and relief all work. Export and Save are blocked by the artifact host, and the app says so and links to the standalone app.
+
 ## Deploying
+
+To update the live site:
+
+```bash
+npx vite build --sourcemap false --outDir /tmp/pages && touch /tmp/pages/.nojekyll
+# commit the contents of /tmp/pages to the gh-pages branch (e.g. via `git worktree add ../ghp gh-pages`) and push
+```
 
 The `dist/` output is a static site with no secrets. The default `base` is relative (`./`), so it works on nested paths such as GitHub Pages project sites. For absolute URLs, set `BASE_PATH=/<repo>/` at build time.
 
-`.github/workflows/deploy-pages.yml` deploys to GitHub Pages and is **manual only** (`workflow_dispatch`). Enable Pages (Settings → Pages → Source: GitHub Actions) and run the workflow when you decide to publish. `ci.yml` runs typecheck, tests and both builds on pull requests.
+`.github/workflows/deploy-pages.yml` is an alternative Actions-based deploy and is **manual only** (`workflow_dispatch`). It applies once it is on `main` and Pages' source is switched to "GitHub Actions"; the current source is the `gh-pages` branch. `ci.yml` runs typecheck, tests and both builds on pull requests.
 
 **Supported browsers:** current Chrome/Edge, Firefox and Safari with WebGL 2. Without WebGL 2 the app shows an explanation instead of failing silently.
 

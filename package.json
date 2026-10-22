@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "build:artifact": "vite build --mode artifact",
+    "build:artifact": "vite build --mode artifact && node scripts/make-artifact-page.mjs",
     "preview": "vite preview --port 4173 --strictPort",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

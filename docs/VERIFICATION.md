@@ -48,8 +48,8 @@ Status values:
 | Responsive layouts 1440×900, 1024×768, 768×1024, 390×844 | PASS | `screenshots/vqa-*.png`; no horizontal overflow; phone inspector drawer and Image Lab checked |
 | No leaked GPU resources / loops | PASS | 20 new-project + import cycles: GPU geometries 6 → 6, textures 7 → 7, overlays = 2 × objects |
 | Single-file Claude Artifact build runs the same editor | PASS (local) | `artifact-results.json`. Top level and inside an `allow-scripts`-only sandboxed iframe:<br>• stroke `maxDelta 0.056`; undo and redo exact<br>• IndexedDB correctly reported blocked → save state "unavailable" |
-| Published Claude Artifact | NOT DONE — needs approval | The build contract forbids publishing or sharing without explicit approval. `dist-artifact/index.html` (2.9 MB) is ready |
-| Static deployment | PREPARED | `.github/workflows/deploy-pages.yml` is manual-only; no public URL exists |
+| Published Claude Artifact | PASS (private) | Published with your approval on 2026-10-22. Tested before publishing in a host-style wrapper inside a sandboxed iframe: fits the frame (800/800 px), stroke `maxDelta 0.056`, and export reports "cannot save files" instead of claiming success. The live viewer itself was not automated |
+| Static deployment | PASS | https://westkitty.github.io/Form_Engine_CC/ (from the `gh-pages` branch). Live check in Chromium: boots, real stroke `maxDelta 0.056`, no page errors, service worker registered |
 
 ## Import / export format matrix
 

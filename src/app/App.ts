@@ -8,7 +8,7 @@ import { defaultSettings, type BrushSettings, type BrushType } from '../sculpt/b
 import { makePrimitive, subdivideMidpoint, decimate, type PrimitiveKind } from '../geometry/topology';
 import { geometryFromSnapshot, type GeometrySnapshot } from '../geometry/EditableMesh';
 import { importModelFiles, ImportError, parseModel, type ImportResult } from '../io/importers';
-import { exportObjects, downloadBlob, safeFileName, sha256, type ExportOptions, type Units } from '../io/exporters';
+import { exportObjects, downloadBlob, safeFileName, sha256, STANDALONE_URL, type ExportOptions, type Units } from '../io/exporters';
 import { analyzeGeometry, removeDebris, flipWinding } from '../io/validate';
 import { writeProject, readProject, type ReferenceImageRecord, type JobRecordLite } from '../persistence/projectFile';
 import * as store from '../persistence/idb';
@@ -479,7 +479,7 @@ export class App {
     const ok = downloadBlob(res.data, res.mime, name);
     const size = typeof res.data === 'string' ? res.data.length : res.data.byteLength;
     if (ok) this.toast(res.warnings.length ? 'warn' : 'ok', `Exported ${name} (${fmtBytes(size)}, sha256 ${hash}…)`, res.warnings, 8000);
-    else this.toast('error', 'This environment blocked the download.', ['Use the standalone app for file export']);
+    else this.toast('error', 'This embedded preview cannot save files to your device.', [`Open the standalone app to export: ${STANDALONE_URL}`]);
     (window as any).__lastExport = { name, hash, size, data: res.data };
     return { ...res, name, hash };
   }
@@ -501,6 +501,7 @@ export class App {
     const zip = await writeProject(this.projectState());
     const ok = downloadBlob(zip as Uint8Array<ArrayBuffer>, 'application/zip', safeFileName(this.projectName, 'formengine'));
     if (ok) this.toast('ok', `Project file saved (${fmtBytes(zip.byteLength)}). Keep it as a backup — browser storage can be cleared.`);
+    else this.toast('error', 'This embedded preview cannot save files to your device.', [`Open the standalone app to save projects: ${STANDALONE_URL}`]);
     await this.autosaveNow();
   }
 

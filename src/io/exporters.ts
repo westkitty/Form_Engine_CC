@@ -125,8 +125,13 @@ export function safeFileName(name: string, ext: string) {
   return `${base}.${ext}`;
 }
 
+/** The Claude Artifact host silently blocks every page-initiated download, so that build never claims one. */
+export const DOWNLOADS_BLOCKED = import.meta.env?.MODE === 'artifact';
+export const STANDALONE_URL = 'https://westkitty.github.io/Form_Engine_CC/';
+
 /** Trigger a real browser download; returns false if the sandbox blocks it. */
 export function downloadBlob(data: BlobPart, mime: string, fileName: string): boolean {
+  if (DOWNLOADS_BLOCKED) return false;
   try {
     const blob = new Blob([data], { type: mime });
     const url = URL.createObjectURL(blob);
