@@ -1,0 +1,11 @@
+{
+  "name": "FORM//ENGINE",
+  "short_name": "FORM",
+  "description": "Browser-native 3D sculpting workbench",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#121418",
+  "theme_color": "#121418",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
