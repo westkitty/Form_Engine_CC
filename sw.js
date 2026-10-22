@@ -1,6 +1,6 @@
 // FORM//ENGINE offline cache: network-first for navigation, cache-first for built assets.
 // Covers the editor shell and local features only; reconstruction always needs the network.
-const CACHE = 'formengine-v1';
+const CACHE = 'formengine-v2';
 self.addEventListener('install', (e) => { self.skipWaiting(); });
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
