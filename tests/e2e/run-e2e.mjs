@@ -729,18 +729,24 @@ async function main() {
     ev.palmDelta = await delta(page, 'palm');
     assert(ev.penSeen && ev.palmDelta.maxDelta === 0, 'finger on the mesh does not sculpt once a pen was used');
     // Two-finger tap = undo, three-finger tap = redo
+    // Synthetic touches are time-stamped when the harness dispatches them, which waits for the slow
+    // software-rendered frame in progress; let the renderer go idle so the tap timing reflects the tap.
+    const idle = () => page.waitForTimeout(1500);
+    await idle();
     await snap(page, 'beforeUndo');
     const h0 = await page.evaluate(() => window.__formengine.app.history.size);
     await touch('touchStart', [{ x: cx - 200, y: cy - 150, id: 1 }, { x: cx - 140, y: cy - 150, id: 2 }]);
     await touch('touchEnd', []);
     await page.waitForTimeout(150);
     const h1 = await page.evaluate(() => window.__formengine.app.history.size);
-    ev.twoFingerTapUndo = { before: h0, after: h1 };
+    ev.twoFingerTapUndo = { before: h0, after: h1, tap: await page.evaluate(() => window.__lastTap) };
     assert(h1 === h0 - 1, 'two-finger tap undoes');
+    await idle();
     await touch('touchStart', [{ x: cx - 200, y: cy - 150, id: 1 }, { x: cx - 160, y: cy - 150, id: 2 }, { x: cx - 120, y: cy - 150, id: 3 }]);
     await touch('touchEnd', []);
     await page.waitForTimeout(150);
     ev.threeFingerTapRedo = await page.evaluate(() => window.__formengine.app.history.size);
+    ev.lastTap = await page.evaluate(() => window.__lastTap);
     assert(ev.threeFingerTapRedo === h0, 'three-finger tap redoes');
     ev.afterRedo = await delta(page, 'beforeUndo');
     assert(ev.afterRedo.maxDelta === 0, 'redo restores the exact geometry');

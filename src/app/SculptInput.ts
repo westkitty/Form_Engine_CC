@@ -46,7 +46,7 @@ export class SculptInput {
     if (this.forwarding || e.target !== this.canvas()) return;
     this.downAt = { x: e.clientX, y: e.clientY, t: performance.now() };
     if (e.pointerType === 'touch') {
-      if (this.touches.size === 0) this.tap = { start: performance.now(), max: 0, moved: false, origin: new Map() };
+      if (this.touches.size === 0) this.tap = { start: e.timeStamp, max: 0, moved: false, origin: new Map() };
       this.touches.set(e.pointerId, e);
       if (this.tap) { this.tap.origin.set(e.pointerId, { x: e.clientX, y: e.clientY }); this.tap.max = Math.max(this.tap.max, this.touches.size); }
       if (this.touches.size >= 2 && this.strokePointer !== null) {
@@ -143,17 +143,20 @@ export class SculptInput {
 
   /** Two-finger tap = undo, three-finger tap = redo (short, nearly motionless multi-touch). */
   private tap: { start: number; max: number; moved: boolean; origin: Map<number, { x: number; y: number }> } | null = null;
-  private endTouch(id: number) {
+  private endTouch(id: number, at: number) {
     this.touches.delete(id);
     if (this.touches.size || !this.tap) return;
     const t = this.tap; this.tap = null;
-    if (t.moved || performance.now() - t.start > 500) return;
+    // Event timestamps (when the fingers actually touched/lifted), so a busy main thread can't turn a quick tap into a "slow" one.
+    const ms = at - t.start;
+    (window as any).__lastTap = { max: t.max, moved: t.moved, ms: Math.round(ms) }; // diagnostics (read by tests)
+    if (t.moved || ms > 500) return;
     if (t.max === 2) this.app.undo();
     else if (t.max === 3) this.app.redo();
   }
 
   private up(e: PointerEvent) {
-    if (e.pointerType === 'touch') this.endTouch(e.pointerId);
+    if (e.pointerType === 'touch') this.endTouch(e.pointerId, e.timeStamp);
     if (this.strokePointer !== null && e.pointerId === this.strokePointer) {
       e.stopPropagation();
       this.strokePointer = null;

@@ -87,6 +87,28 @@ Every result is a normal editable object, with provenance that states what was m
 - **Gestures:** one finger on the background turns the view; two fingers pan and zoom; **two-finger tap = undo**, **three-finger tap = redo**.
 - **Layout:** the tall **Size** and **Strength** sliders sit on the screen edge for your other hand. Menu → *Left-handed layout* swaps the sides.
 
+## Android app (APK) — install with ADB
+
+The `android/` folder is a small native wrapper app. It opens FORM//ENGINE full screen with system bars hidden. S Pen pressure and side-button input reach the app unchanged. It also gives the app the system file picker for imports and saves exports to **Downloads/FORM ENGINE**.
+
+**Download:** https://westkitty.github.io/Form_Engine_CC/android/form-engine.apk (package `io.github.westkitty.formengine`, Android 8+).
+
+From a Mac, with the tablet connected by USB:
+
+```bash
+brew install --cask android-platform-tools        # installs adb
+# On the tablet: Settings → About tablet → Software information → tap "Build number" 7 times,
+# then Settings → Developer options → turn on "USB debugging". Plug in and accept the prompt.
+adb devices                                        # the tablet should be listed as "device"
+curl -L -o form-engine.apk https://westkitty.github.io/Form_Engine_CC/android/form-engine.apk
+adb install -r form-engine.apk
+adb shell monkey -p io.github.westkitty.formengine -c android.intent.category.LAUNCHER 1   # launch it
+```
+
+Wireless instead of USB: Developer options → **Wireless debugging** → *Pair device with pairing code*, then `adb pair <ip>:<pair-port>` (enter the code) and `adb connect <ip>:<port>`.
+
+**Build it yourself:** `ANDROID_SDK_ROOT=… scripts/build-android.sh`. You need JDK 17+, `platforms;android-34` and `build-tools;35.0.0`. The signing key is created outside the repo and must be kept: Android only accepts updates signed with the same key.
+
 ## Live
 
 - **Standalone app (GitHub Pages):** https://westkitty.github.io/Form_Engine_CC/. Served from the `gh-pages` branch.

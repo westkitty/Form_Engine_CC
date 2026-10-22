@@ -129,9 +129,24 @@ export function safeFileName(name: string, ext: string) {
 export const DOWNLOADS_BLOCKED = import.meta.env?.MODE === 'artifact';
 export const STANDALONE_URL = 'https://westkitty.github.io/Form_Engine_CC/';
 
+/** Native bridge exposed by the FORM//ENGINE Android wrapper (android/): saves into Downloads/FORM ENGINE. */
+type AndroidBridge = { saveFile(base64: string, mime: string, name: string): boolean };
+const androidBridge = (): AndroidBridge | null => (typeof window !== 'undefined' && (window as any).FormEngineAndroid) || null;
+
+function toBase64(data: BlobPart): string {
+  const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : data instanceof ArrayBuffer ? new Uint8Array(data) : ArrayBuffer.isView(data) ? new Uint8Array(data.buffer, data.byteOffset, data.byteLength) : new Uint8Array(0);
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+
 /** Trigger a real browser download; returns false if the sandbox blocks it. */
 export function downloadBlob(data: BlobPart, mime: string, fileName: string): boolean {
   if (DOWNLOADS_BLOCKED) return false;
+  const bridge = androidBridge();
+  if (bridge) {
+    try { return bridge.saveFile(toBase64(data), mime, fileName); } catch { return false; }
+  }
   try {
     const blob = new Blob([data], { type: mime });
     const url = URL.createObjectURL(blob);

@@ -20,6 +20,7 @@ export function initInstall() {
 }
 
 export function runningAsApp() {
+  if ((window as any).FormEngineAndroid) return true; // native Android wrapper
   return matchMedia('(display-mode: fullscreen)').matches || matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone === true;
 }
 

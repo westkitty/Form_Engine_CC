@@ -218,7 +218,9 @@ export class Shell {
     const d = dialog('Install FORM//ENGINE as an app', { id: 'install-help' });
     d.body.append(
       h('p', null, 'Installed, it opens full screen from your home screen like any other app, and keeps working offline.'),
-      h('h3', null, 'Samsung Galaxy Tab / Android'),
+      h('h3', null, 'Android app (APK)'),
+      h('p', null, 'A full-screen FORM//ENGINE app for Android tablets, with saving straight to Downloads. Download ', h('a', { href: './android/form-engine.apk', download: 'form-engine.apk' }, 'form-engine.apk'), ' on the tablet and open it (allow “Install unknown apps” for your browser when asked), or install it from a computer with ADB: ', h('code', null, 'adb install -r form-engine.apk'), '.'),
+      h('h3', null, 'Samsung Galaxy Tab / Android (no APK)'),
       h('ol', null,
         h('li', null, 'Open this page in Chrome or Samsung Internet (not inside another app’s browser).'),
         h('li', null, 'Chrome: tap ⋮ → “Add to home screen” → “Install”. Samsung Internet: tap the menu ☰ → “Add page to” → “Home screen”.'),
