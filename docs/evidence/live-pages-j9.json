@@ -1,0 +1,67 @@
+{
+  "when": "2026-10-22T01:45:55.017Z",
+  "base": "https://westkitty.github.io/Form_Engine_CC/",
+  "results": [
+    {
+      "name": "J9 tablet & pen: palm rejection, finger-tap undo/redo, side-button invert, edge sliders, installable app",
+      "status": "PASS",
+      "ms": 21036,
+      "evidence": {
+        "sizeSlider": {
+          "before": 0.25,
+          "after": 0.4820570513667909
+        },
+        "penOutward": 50.024886135558184,
+        "sideButtonInward": -48.77248489440482,
+        "penSeen": true,
+        "palmDelta": {
+          "maxDelta": 0,
+          "movedComponents": 0
+        },
+        "twoFingerTapUndo": {
+          "before": 2,
+          "after": 1
+        },
+        "threeFingerTapRedo": 2,
+        "afterRedo": {
+          "maxDelta": 0,
+          "movedComponents": 0
+        },
+        "manifest": {
+          "display": "fullscreen",
+          "display_override": [
+            "fullscreen",
+            "standalone",
+            "minimal-ui"
+          ],
+          "start_url": "./?app=1",
+          "icons": [
+            {
+              "src": "icon-192.png",
+              "sizes": "192x192",
+              "purpose": "any",
+              "ok": true,
+              "type": "image/png"
+            },
+            {
+              "src": "icon-512.png",
+              "sizes": "512x512",
+              "purpose": "any",
+              "ok": true,
+              "type": "image/png"
+            },
+            {
+              "src": "icon-maskable-512.png",
+              "sizes": "512x512",
+              "purpose": "maskable",
+              "ok": true,
+              "type": "image/png"
+            }
+          ]
+        },
+        "fullscreenButton": true,
+        "pageErrors": []
+      }
+    }
+  ]
+}
