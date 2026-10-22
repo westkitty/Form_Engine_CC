@@ -37,7 +37,9 @@ async function boot() {
     return;
   }
   const app = new App();
-  await app.loadPrefs();
+  app.storageOk = !!caps.indexedDB;
+  if (!app.storageOk) app.saveState = 'unavailable';
+  else await app.loadPrefs();
   const shell = new Shell(app, mount);
   // Diagnostic/test handle (no secrets): used by the automated browser tests and the diagnostics panel.
   (window as any).__formengine = { app, shell, caps };

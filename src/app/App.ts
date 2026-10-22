@@ -34,6 +34,8 @@ export class App {
   symmetry: SymmetrySettings = { x: true, y: false, z: false };
   transformMode: TransformMode = 'translate';
   penOnlySculpt = false;
+  /** False when the host blocks IndexedDB (e.g. sandboxed embeds); autosave is then skipped honestly. */
+  storageOk = true;
   units: Units = 'm';
   projectId = newId('proj');
   projectName = 'Untitled sculpture';
@@ -574,7 +576,7 @@ export class App {
 
   async autosaveNow(): Promise<void> {
     clearTimeout(this.saveTimer);
-    if (!store.storageAvailable()) { this.saveState = 'unavailable'; this.emit('save'); return; }
+    if (!this.storageOk || !store.storageAvailable()) { this.saveState = 'unavailable'; this.emit('save'); return; }
     if (this.stroke) { this.saveTimer = window.setTimeout(() => this.autosaveNow(), 800); return; } // never block an active stroke
     if (!this.model.objects.length && !this.dirty) return;
     this.saveState = 'saving'; this.emit('save');
@@ -608,7 +610,7 @@ export class App {
   }
 
   async restoreLast(): Promise<boolean> {
-    if (!store.storageAvailable()) return false;
+    if (!this.storageOk || !store.storageAvailable()) return false;
     try {
       const id = await store.kvGet<string>('lastProjectId');
       if (!id) return false;
@@ -634,7 +636,7 @@ export class App {
   persistPrefs() {
     clearTimeout(this.prefsTimer);
     this.prefsTimer = window.setTimeout(() => {
-      if (store.storageAvailable()) store.kvSet('prefs', { brush: this.brush, brushSettings: this.brushSettings, symmetry: this.symmetry, penOnlySculpt: this.penOnlySculpt }).catch(() => {});
+      if (this.storageOk && store.storageAvailable()) store.kvSet('prefs', { brush: this.brush, brushSettings: this.brushSettings, symmetry: this.symmetry, penOnlySculpt: this.penOnlySculpt }).catch(() => {});
     }, 500);
   }
   async loadPrefs() {

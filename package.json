@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "node tests/e2e/run-e2e.mjs",
-    "proxy": "node server/reconstruction-proxy.mjs"
+    "proxy": "node server/reconstruction-proxy.mjs",
+    "test:artifact": "vite build --mode artifact && node tests/e2e/artifact-check.mjs",
+    "fetch:samples": "mkdir -p test-results/external && curl -sSL -o test-results/external/Duck.glb https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/Duck/glTF-Binary/Duck.glb && curl -sSL -o test-results/external/BoxTextured.glb https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/BoxTextured/glTF-Binary/BoxTextured.glb"
   },
   "dependencies": {
     "fflate": "^0.8.3",
@@ -26,5 +28,8 @@
     "vite": "^8.3.5",
     "vite-plugin-singlefile": "^2.3.4",
     "vitest": "^5.0.5"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

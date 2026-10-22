@@ -257,3 +257,30 @@ describe('normals', () => {
     expect(worst).toBeLessThan(1e-5);
   });
 });
+
+describe('local/world mapping', () => {
+  it('a world-space dab on a translated/rotated/scaled object edits exactly the vertices under it', () => {
+    const m = sphere();
+    const obj = new THREE.Mesh(m.geometry);
+    obj.position.set(3, -1, 2); obj.rotation.set(0.4, 1.1, -0.3); obj.scale.setScalar(2.5);
+    obj.updateMatrixWorld(true);
+    // world hit point = transformed local vertex 0's position region
+    const localTarget = new THREE.Vector3(0, 0.5, 0);
+    const worldHit = localTarget.clone().applyMatrix4(obj.matrixWorld);
+    const worldRadius = 0.5; // world units
+    const scale = Math.cbrt(Math.abs(obj.matrixWorld.determinant()));
+    const local = obj.worldToLocal(worldHit.clone());
+    const before = m.positions.slice();
+    const st = new SculptStroke(m, 'draw', defaultSettings('draw'), worldRadius / scale, { x: false, y: false, z: false });
+    st.dab(local); st.commit();
+    let moved = 0;
+    for (let v = 0; v < m.vertexCount; v++) {
+      const d = Math.hypot(m.positions[v * 3] - before[v * 3], m.positions[v * 3 + 1] - before[v * 3 + 1], m.positions[v * 3 + 2] - before[v * 3 + 2]);
+      if (d < 1e-7) continue;
+      moved++;
+      const w = new THREE.Vector3(before[v * 3], before[v * 3 + 1], before[v * 3 + 2]).applyMatrix4(obj.matrixWorld);
+      expect(w.distanceTo(worldHit)).toBeLessThanOrEqual(worldRadius + 1e-5);
+    }
+    expect(moved).toBeGreaterThan(10);
+  });
+});
